@@ -13,23 +13,20 @@
 <div class="dash-shell">
 <nav class="side-nav" id="sideNav"></nav>
 <div>
-  <div class="card">
-    <div class="profile-head">
-      <div class="avatar avatar-lg" id="avatarBox"></div>
-      <div>
-        <h2 id="fullName"></h2>
-        <div id="roleTag" class="role-tag"></div>
-      </div>
-    </div>
-
-    <div class="info-grid" id="infoGrid"></div>
-
-    <div id="bioBlock" style="margin-top:1.6rem;"></div>
-    <div id="certBlock" style="margin-top:1.2rem;"></div>
-    <div id="audioBlock" style="margin-top:1.2rem;"></div>
-
-    <a href="profile-setup.html" class="btn ghost small" style="margin-top:1.6rem;">Edit profile</a>
-  </div>
+<div class="card">
+<div class="profile-head">
+<div class="avatar avatar-lg" id="avatarBox"></div>
+<div>
+<h2 id="fullName"></h2>
+<div id="roleTag" class="role-tag"></div>
+</div>
+</div>
+<div class="info-grid" id="infoGrid"></div>
+<div id="bioBlock" style="margin-top:1.6rem;"></div>
+<div id="certBlock" style="margin-top:1.2rem;"></div>
+<div id="audioBlock" style="margin-top:1.2rem;"></div>
+<a href="profile-setup.html" class="btn ghost small" style="margin-top:1.6rem;">Edit profile</a>
+</div>
 </div>
 </div>
 </div>
@@ -46,38 +43,45 @@ document.getElementById('fullName').textContent = `${profile.firstName||user.fir
 document.getElementById('roleTag').textContent = user.role === 'tutor' ? 'Tutor' : 'Student';
 
 document.getElementById('avatarBox').innerHTML = profile.picture
-  ? `<img src="${profile.picture}">`
-  : initials(`${profile.firstName||''} ${profile.lastName||''}`);
+? `<img src="${profile.picture}">`
+: initials(`${profile.firstName||''} ${profile.lastName||''}`);
 
 let infoHtml = '';
 function item(k,v){ if(!v) return ''; return `<div class="info-item"><div class="k">${k}</div><div class="v">${v}</div></div>`; }
 
 infoHtml += item('Email', user.email);
+infoHtml += item('Gender', profile.gender);
+infoHtml += item('Country', profile.country);
 infoHtml += item('Phone', profile.phone);
 infoHtml += item('WhatsApp', profile.whatsapp);
 
 if (user.role === 'tutor'){
-  infoHtml += item('Subjects', (profile.subjects||[]).join(', '));
-  infoHtml += item('Experience', profile.experience);
-  infoHtml += item('Qualification', profile.qualification);
-  infoHtml += item('Languages', (profile.languages||[]).join(', '));
-  infoHtml += item('Price', profile.price ? `$${profile.price} / class` : '');
+infoHtml += item('Subjects', (profile.subjects||[]).join(', '));
+infoHtml += item('Teaches', profile.ageGroups);
+infoHtml += item('Class platform', profile.platform);
+infoHtml += item('Availability', profile.availability);
+infoHtml += item('Experience', profile.experience);
+infoHtml += item('Qualification', profile.qualification);
+infoHtml += item('Languages', (profile.languages||[]).join(', '));
+infoHtml += item('Price', profile.price ? `$${profile.price} / class` : '');
 } else {
-  infoHtml += item('Learning', (profile.interests||[]).join(', '));
-  infoHtml += item('Languages', (profile.languages||[]).join(', '));
+infoHtml += item('Age group', profile.ageGroup);
+infoHtml += item('Learning', (profile.interests||[]).join(', '));
+infoHtml += item('Languages', (profile.languages||[]).join(', '));
+infoHtml += item('Availability', profile.availability);
 }
 document.getElementById('infoGrid').innerHTML = infoHtml;
 
 if (profile.bio){
-  document.getElementById('bioBlock').innerHTML = `<div class="info-item"><div class="k">Bio</div><div class="v" style="font-weight:400;">${profile.bio}</div></div>`;
+document.getElementById('bioBlock').innerHTML = `<div class="info-item"><div class="k">Bio</div><div class="v" style="font-weight:400;">${profile.bio}</div></div>`;
 }
 if (profile.certification){
-  document.getElementById('certBlock').innerHTML = `<div class="info-item"><div class="k">Certification</div></div>
-    <img src="${profile.certification}" style="max-width:220px;border-radius:8px;border:1px solid var(--line);margin-top:6px;" onerror="this.replaceWith('Certificate file uploaded')">`;
+document.getElementById('certBlock').innerHTML = `<div class="info-item"><div class="k">Certification</div></div>
+<img src="${profile.certification}" style="max-width:220px;border-radius:8px;border:1px solid var(--line);margin-top:6px;" onerror="this.replaceWith('Certificate file uploaded')">`;
 }
 if (profile.audioSample){
-  document.getElementById('audioBlock').innerHTML = `<div class="info-item"><div class="k">Recitation sample</div></div>
-    <div class="audio-row"><audio controls src="${profile.audioSample}"></audio></div>`;
+document.getElementById('audioBlock').innerHTML = `<div class="info-item"><div class="k">Recitation sample</div></div>
+<div class="audio-row"><audio controls src="${profile.audioSample}"></audio></div>`;
 }
 </script>
 </body>
