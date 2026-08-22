@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="">
+<div id="nav"></div>
+
+<section style="padding:48px 0;">
+  <div class="container">
+    <div id="dashHead"></div>
+    <div class="dash-row" style="margin-top:2rem;">
+      <div class="card">
+        <h3 id="reqTitle">Your trial requests</h3>
+        <div id="reqList"></div>
+      </div>
+      <div class="card" id="sideCard"></div>
+    </div>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=dashboard.html'; }
+
+  document.getElementById('dashHead').innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;">
+      <div class="avatar avatar-lg">${initials(user.firstName+' '+user.lastName)}</div>
+      <div>
+        <h2 style="margin-bottom:.1em;">Welcome, ${user.firstName}</h2>
+        <p style="margin:0;color:var(--ink-2);">${user.role==='tutor' ? 'Tutor account' : 'Student account'} · ${user.email}</p>
+      </div>
+    </div>`;
+
+  const requests = DB.read('ilp_requests', []);
+  const reqList = document.getElementById('reqList');
+
+  function statusBadge(s){ return `<span class="badge-status ${s}">${s}</span>`; }
+
+  if (user.role === 'tutor'){
+    document.getElementById('reqTitle').textContent = 'Trial requests from students';
+    const mine = requests.filter(r=> r.tutorName === user.firstName+' '+user.lastName || r.tutorId);
+    // Fallback: tutor accounts created via register.html aren't linked to seed tutor IDs,
+    // so show all pending requests as a demo inbox when no exact match exists.
+    const list = mine.length ? mine : requests;
+    reqList.innerHTML = list.length ? list.map(r=>`
+      <div class="req-item">
+        <div><strong>${r.studentName}</strong><br><span style="font-size:.82rem;color:var(--ink-2);">Preferred: ${r.preferredTime||'—'}</span></div>
+        ${statusBadge(r.status)}
+      </div>`).join('') : '<p style="color:var(--ink-2);">No requests yet.</p>';
+    document.getElementById('sideCard').innerHTML = `
+      <h3>Your teaching subjects</h3>
+      <p style="color:var(--ink-2);font-size:.88rem;">Manage your public profile from Find Tutors once profile editing is enabled.</p>
+      <a href="tutors.html" class="btn ghost small block">View tutor listing</a>`;
+  } else {
+    const mine = requests.filter(r=> r.studentId === user.email);
+    reqList.innerHTML = mine.length ? mine.map(r=>`
+      <div class="req-item">
+        <div><strong>${r.tutorName}</strong><br><span style="font-size:.82rem;color:var(--ink-2);">Preferred: ${r.preferredTime||'—'}</span></div>
+        ${statusBadge(r.status)}
+      </div>`).join('') : '<p style="color:var(--ink-2);">You haven\'t booked a trial yet.</p>';
+    document.getElementById('sideCard').innerHTML = `
+      <h3>Find your next tutor</h3>
+      <p style="color:var(--ink-2);font-size:.88rem;">Browse tutors by subject, language and price.</p>
+      <a href="tutors.html" class="btn primary small block">Browse tutors</a>`;
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Find Tutors — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="Find Tutors">
+<div id="nav"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="eyebrow" style="justify-content:center;">Our Teachers</div>
+    <h1>Find your perfect Quran tutor</h1>
+    <p style="color:var(--ink-2);">Browse tutor profiles and choose based on subject, language and experience.</p>
+  </div>
+</section>
+
+<section style="padding-top:40px;">
+  <div class="container">
+    <div class="filter-bar">
+      <input type="text" id="searchInput" placeholder="Search by name, subject or language">
+      <select id="subjectFilter">
+        <option value="">All subjects</option>
+        <option>Hifz</option><option>Tajweed</option><option>Recitation</option>
+        <option>Qaida</option><option>Arabic</option>
+      </select>
+      <select id="genderFilter">
+        <option value="">Any gender</option>
+        <option>Male</option><option>Female</option>
+      </select>
+    </div>
+    <div class="grid-3" id="tutorGrid"></div>
+    <p id="emptyState" style="display:none;text-align:center;color:var(--ink-2);padding:40px 0;">No tutors match your filters yet — try clearing a filter.</p>
+  </div>
+</section>
+
+<div class="modal-backdrop" id="trialModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3 id="modalTutorName">Book a free trial</h3>
+    <p class="form-sub" id="modalTutorMeta" style="margin-bottom:1.2em;"></p>
+    <div id="modalMsg" class="msg"></div>
+    <form id="trialForm">
+      <div class="field"><label>Your name</label><input type="text" id="trialName" required></div>
+      <div class="field"><label>Preferred day &amp; time</label><input type="text" id="trialTime" placeholder="e.g. Weekdays, evening (GMT+5)" required></div>
+      <button class="btn primary block" type="submit">Send trial request</button>
+    </form>
+  </div>
+</div>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const grid = document.getElementById('tutorGrid');
+  const empty = document.getElementById('emptyState');
+  let ALL_TUTORS = DB.read('ilp_tutors', []);
+  let activeTutor = null;
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('subject')) document.getElementById('subjectFilter').value = params.get('subject');
+
+  function starRow(r){
+    const full = Math.round(r);
+    return '★'.repeat(full) + '☆'.repeat(5-full);
+  }
+
+  function render(){
+    const q = document.getElementById('searchInput').value.trim().toLowerCase();
+    const subj = document.getElementById('subjectFilter').value;
+    const gen = document.getElementById('genderFilter').value;
+
+    const filtered = ALL_TUTORS.filter(t=>{
+      const hay = (t.name+' '+t.subjects.join(' ')+' '+t.languages.join(' ')).toLowerCase();
+      if (q && !hay.includes(q)) return false;
+      if (subj && !t.subjects.includes(subj)) return false;
+      if (gen && t.gender !== gen) return false;
+      return true;
+    });
+
+    empty.style.display = filtered.length ? 'none' : 'block';
+    grid.innerHTML = filtered.map(t=>`
+      <div class="card tutor-card">
+        <div class="tutor-top">
+          <div class="avatar">${initials(t.name)}</div>
+          <div>
+            <div class="tutor-name">${t.name}</div>
+            <div class="tutor-meta">${t.country} · ${t.exp}</div>
+          </div>
+        </div>
+        <div class="stars">${starRow(t.rating)} <span style="color:var(--ink-2);font-weight:500;">${t.rating} (${t.reviews})</span></div>
+        <p style="font-size:.87rem;">${t.bio}</p>
+        <div class="pill-row">
+          ${t.subjects.map(s=>`<span class="pill">${s}</span>`).join('')}
+          ${t.languages.map(l=>`<span class="pill">${l}</span>`).join('')}
+        </div>
+        <div class="tutor-bottom">
+          <div class="tutor-price">$${t.price}<small> / class</small></div>
+          <button class="btn gold small" onclick="openModal('${t.id}')">Book trial</button>
+        </div>
+      </div>`).join('');
+  }
+
+  ['searchInput','subjectFilter','genderFilter'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', render);
+  });
+  render();
+
+  function openModal(id){
+    const user = currentUser();
+    if (!user){ location.href = 'login.html?next=tutors.html'; return; }
+    activeTutor = ALL_TUTORS.find(t=>t.id===id);
+    document.getElementById('modalTutorName').textContent = 'Book a trial with ' + activeTutor.name;
+    document.getElementById('modalTutorMeta').textContent = activeTutor.subjects.join(', ') + ' · $' + activeTutor.price + '/class';
+    document.getElementById('trialName').value = user.firstName + ' ' + user.lastName;
+    document.getElementById('modalMsg').style.display = 'none';
+    document.getElementById('trialModal').classList.add('open');
+  }
+  function closeModal(){ document.getElementById('trialModal').classList.remove('open'); }
+
+  document.getElementById('trialForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    const user = currentUser();
+    const requests = DB.read('ilp_requests', []);
+    requests.push({
+      id: 'r'+Date.now(),
+      tutorId: activeTutor.id,
+      tutorName: activeTutor.name,
+      studentId: user.email,
+      studentName: document.getElementById('trialName').value,
+      preferredTime: document.getElementById('trialTime').value,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    });
+    DB.write('ilp_requests', requests);
+    const msg = document.getElementById('modalMsg');
+    msg.className = 'msg success';
+    msg.textContent = 'Trial request sent! Track its status from your dashboard.';
+    document.getElementById('trialForm').reset();
+    setTimeout(closeModal, 1600);
+  });
+</script>
+</body>
+</html>
