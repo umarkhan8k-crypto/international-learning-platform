@@ -15,129 +15,170 @@
 <p class="form-sub" id="formSub">Just a few more details so students and tutors know who you are.</p>
 <div id="setupMsg" class="msg"></div>
 
-<form id="tutorForm" style="display:none;">
-  <div class="field-row">
-    <div class="field"><label>First name</label><input type="text" id="t_firstName" required></div>
-    <div class="field"><label>Last name</label><input type="text" id="t_lastName" required></div>
-  </div>
-
-  <div class="field">
-    <label>Phone number</label>
-    <div id="t_phoneMount"></div>
-  </div>
-  <div class="field">
-    <label>WhatsApp number</label>
-    <div id="t_waMount"></div>
-  </div>
-
-  <div class="field">
-    <label>Profile picture</label>
-    <div class="pic-picker">
-      <div class="pic-preview" id="t_picPreview">No photo</div>
-      <label class="upload-box" style="flex:1;">
-        <input type="file" id="t_picFile" accept="image/*">
-        Tap to upload a photo
-      </label>
-    </div>
-  </div>
-
-  <div class="field"><label>Email</label><input type="email" id="t_email" disabled></div>
-
-  <div class="field">
-    <label>Subjects you can teach</label>
-    <select id="t_subjects" multiple style="height:110px;">
-      <option>Qaida</option><option>Recitation</option><option>Hifz</option>
-      <option>Tajweed</option><option>Arabic</option>
-    </select>
-    <div class="hint">Hold Ctrl / Cmd to select more than one, or tap multiple on mobile.</div>
-  </div>
-
-  <div class="field">
-    <label>Hifz / Ijazah certification <span style="font-weight:400;">(optional)</span></label>
-    <label class="upload-box">
-      <input type="file" id="t_certFile" accept="image/*,.pdf">
-      Tap to upload your certificate — leave empty if you don't have one
-    </label>
-    <div class="fname" id="t_certName"></div>
-  </div>
-
-  <div class="field"><label>Years of experience</label><input type="text" id="t_exp" placeholder="e.g. 5 years" required></div>
-
-  <div class="field">
-    <label>Recitation sample (audio)</label>
-    <label class="upload-box">
-      <input type="file" id="t_audioFile" accept="audio/*">
-      Tap to upload a short recitation sample
-    </label>
-    <div class="fname" id="t_audioName"></div>
-    <div class="hint">Please upload your own, original recitation. Copied, downloaded or edited/auto-tuned audio will not be accepted.</div>
-  </div>
-
-  <div class="field"><label>Qualification</label><input type="text" id="t_qualification" placeholder="e.g. Al-Azhar graduate, Ijazah in Hafs" required></div>
-
-  <div class="field"><label>Bio</label><textarea id="t_bio" placeholder="Tell students about your teaching style and background" required></textarea></div>
-
-  <div class="field">
-    <label>Price per class</label>
-    <div class="price-row">
-      <span class="sym">$</span>
-      <input type="number" id="t_price" min="1" step="0.5" required>
-      <span class="per">per class</span>
-    </div>
-  </div>
-
-  <div class="field">
-    <label>Languages you speak</label>
-    <div id="t_langMount"></div>
-  </div>
-
-  <button type="submit" class="btn primary block">Create profile</button>
+<form id="tutorForm" style="display:none;" novalidate>
+<div class="field-row">
+<div class="field" id="f_t_firstName"><label>First name</label><input type="text" id="t_firstName"><div class="field-error"></div></div>
+<div class="field" id="f_t_lastName"><label>Last name</label><input type="text" id="t_lastName"><div class="field-error"></div></div>
+</div>
+<div class="field" id="f_t_gender">
+<label>Gender</label>
+<div class="radio-row">
+<label><input type="radio" name="t_gender" value="Male"> Male</label>
+<label><input type="radio" name="t_gender" value="Female"> Female</label>
+</div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_t_country"><label>Country</label><input type="text" id="t_country" placeholder="e.g. Pakistan"><div class="field-error"></div></div>
+<div class="field" id="f_t_phone">
+<label>Phone number</label>
+<div id="t_phoneMount"></div>
+<div class="field-error"></div>
+</div>
+<div class="check-row"><input type="checkbox" id="t_waSame" checked><label for="t_waSame">My WhatsApp number is the same as above</label></div>
+<div class="field" id="f_t_wa" style="display:none;">
+<label>WhatsApp number</label>
+<div id="t_waMount"></div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_t_pic">
+<label>Profile picture</label>
+<div class="pic-picker">
+<div class="pic-preview" id="t_picPreview">No photo</div>
+<label class="upload-box" style="flex:1;">
+<input type="file" id="t_picFile" accept="image/*">
+Tap to upload a photo
+</label>
+</div>
+<div class="field-error"></div>
+</div>
+<div class="field"><label>Email</label><input type="email" id="t_email" disabled></div>
+<div class="field" id="f_t_subjects">
+<label>Subjects you can teach</label>
+<select id="t_subjects" multiple style="height:110px;">
+<option>Qaida</option><option>Recitation</option><option>Hifz</option>
+<option>Tajweed</option><option>Arabic</option>
+</select>
+<div class="hint">Hold Ctrl / Cmd to select more than one, or tap multiple on mobile.</div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_t_ageGroups">
+<label>Who do you teach?</label>
+<div class="radio-row">
+<label><input type="radio" name="t_ageGroups" value="Kids"> Kids only</label>
+<label><input type="radio" name="t_ageGroups" value="Adults"> Adults only</label>
+<label><input type="radio" name="t_ageGroups" value="Kids and Adults"> Both</label>
+</div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_t_platform">
+<label>How do you teach your classes?</label>
+<select id="t_platform">
+<option value="">Select a platform</option>
+<option>Zoom</option><option>Google Meet</option><option>WhatsApp Call</option><option>Other</option>
+</select>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_t_availability"><label>Availability</label><input type="text" id="t_availability" placeholder="e.g. Weekday evenings (GMT+5)"><div class="field-error"></div></div>
+<div class="field">
+<label>Hifz / Ijazah certification <span style="font-weight:400;">(optional)</span></label>
+<label class="upload-box">
+<input type="file" id="t_certFile" accept="image/*,.pdf">
+Tap to upload your certificate — leave empty if you don't have one
+</label>
+<div class="fname" id="t_certName"></div>
+</div>
+<div class="field" id="f_t_exp"><label>Years of experience</label><input type="text" id="t_exp" placeholder="e.g. 5 years"><div class="field-error"></div></div>
+<div class="field" id="f_t_audio">
+<label>Recitation sample (audio)</label>
+<label class="upload-box">
+<input type="file" id="t_audioFile" accept="audio/*">
+Tap to upload a short recitation sample
+</label>
+<div class="fname" id="t_audioName"></div>
+<div class="hint">Please upload your own, original recitation. Copied, downloaded or edited/auto-tuned audio will not be accepted.</div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_t_qualification"><label>Qualification</label><input type="text" id="t_qualification" placeholder="e.g. Al-Azhar graduate, Ijazah in Hafs"><div class="field-error"></div></div>
+<div class="field" id="f_t_bio"><label>Bio</label><textarea id="t_bio" placeholder="Tell students about your teaching style and background"></textarea><div class="field-error"></div></div>
+<div class="field" id="f_t_price">
+<label>Price per class</label>
+<div class="price-row">
+<span class="sym">$</span>
+<input type="number" id="t_price" min="1" step="0.5">
+<span class="per">per class</span>
+</div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_t_lang">
+<label>Languages you speak</label>
+<div id="t_langMount"></div>
+<div class="field-error"></div>
+</div>
+<button type="submit" class="btn primary block">Create profile</button>
 </form>
 
-<form id="studentForm" style="display:none;">
-  <div class="field-row">
-    <div class="field"><label>First name</label><input type="text" id="s_firstName" required></div>
-    <div class="field"><label>Last name</label><input type="text" id="s_lastName" required></div>
-  </div>
-
-  <div class="field">
-    <label>Phone number</label>
-    <div id="s_phoneMount"></div>
-  </div>
-  <div class="field">
-    <label>WhatsApp number</label>
-    <div id="s_waMount"></div>
-  </div>
-
-  <div class="field">
-    <label>Profile picture</label>
-    <div class="pic-picker">
-      <div class="pic-preview" id="s_picPreview">No photo</div>
-      <label class="upload-box" style="flex:1;">
-        <input type="file" id="s_picFile" accept="image/*">
-        Tap to upload a photo
-      </label>
-    </div>
-  </div>
-
-  <div class="field"><label>Email</label><input type="email" id="s_email" disabled></div>
-
-  <div class="field">
-    <label>What would you like to learn?</label>
-    <select id="s_interests" multiple style="height:110px;">
-      <option>Qaida</option><option>Recitation</option><option>Hifz</option>
-      <option>Tajweed</option><option>Arabic</option>
-    </select>
-  </div>
-
-  <div class="field">
-    <label>Languages you speak</label>
-    <div id="s_langMount"></div>
-  </div>
-
-  <div class="field"><label>A little about you / your goals <span style="font-weight:400;">(optional)</span></label><textarea id="s_bio" placeholder="e.g. Learning Hifz, prefer evening classes"></textarea></div>
-
-  <button type="submit" class="btn primary block">Create profile</button>
+<form id="studentForm" style="display:none;" novalidate>
+<div class="field-row">
+<div class="field" id="f_s_firstName"><label>First name</label><input type="text" id="s_firstName"><div class="field-error"></div></div>
+<div class="field" id="f_s_lastName"><label>Last name</label><input type="text" id="s_lastName"><div class="field-error"></div></div>
+</div>
+<div class="field" id="f_s_gender">
+<label>Gender</label>
+<div class="radio-row">
+<label><input type="radio" name="s_gender" value="Male"> Male</label>
+<label><input type="radio" name="s_gender" value="Female"> Female</label>
+</div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_s_country"><label>Country</label><input type="text" id="s_country" placeholder="e.g. UK"><div class="field-error"></div></div>
+<div class="field" id="f_s_ageGroup">
+<label>Age group</label>
+<div class="radio-row">
+<label><input type="radio" name="s_ageGroup" value="Child (under 13)"> Child (under 13)</label>
+<label><input type="radio" name="s_ageGroup" value="Teen (13-17)"> Teen (13–17)</label>
+<label><input type="radio" name="s_ageGroup" value="Adult (18+)"> Adult (18+)</label>
+</div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_s_phone">
+<label>Phone number</label>
+<div id="s_phoneMount"></div>
+<div class="field-error"></div>
+</div>
+<div class="check-row"><input type="checkbox" id="s_waSame" checked><label for="s_waSame">My WhatsApp number is the same as above</label></div>
+<div class="field" id="f_s_wa" style="display:none;">
+<label>WhatsApp number</label>
+<div id="s_waMount"></div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_s_pic">
+<label>Profile picture</label>
+<div class="pic-picker">
+<div class="pic-preview" id="s_picPreview">No photo</div>
+<label class="upload-box" style="flex:1;">
+<input type="file" id="s_picFile" accept="image/*">
+Tap to upload a photo
+</label>
+</div>
+<div class="field-error"></div>
+</div>
+<div class="field"><label>Email</label><input type="email" id="s_email" disabled></div>
+<div class="field" id="f_s_interests">
+<label>What would you like to learn?</label>
+<select id="s_interests" multiple style="height:110px;">
+<option>Qaida</option><option>Recitation</option><option>Hifz</option>
+<option>Tajweed</option><option>Arabic</option>
+</select>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_s_lang">
+<label>Languages you speak</label>
+<div id="s_langMount"></div>
+<div class="field-error"></div>
+</div>
+<div class="field" id="f_s_availability"><label>Preferred days &amp; time to study</label><input type="text" id="s_availability" placeholder="e.g. Weekday evenings (GMT+5)"><div class="field-error"></div></div>
+<div class="field" id="f_s_bio"><label>A little about you / your goals</label><textarea id="s_bio" placeholder="e.g. Learning Hifz, prefer evening classes"></textarea><div class="field-error"></div></div>
+<button type="submit" class="btn primary block">Create profile</button>
 </form>
 
 </div>
@@ -148,112 +189,214 @@
 <script>
 const user = currentUser();
 if (!user){ location.href = 'register.html'; }
-
 let tPic='', tCert='', tAudio='', sPic='';
 
+/* ---------- validation helpers ---------- */
+function setError(fieldId, message){
+const el = document.getElementById(fieldId);
+if (!el) return;
+el.classList.add('invalid');
+const err = el.querySelector('.field-error');
+if (err) err.textContent = message;
+}
+function clearError(fieldId){
+const el = document.getElementById(fieldId);
+if (!el) return;
+el.classList.remove('invalid');
+}
+function requireText(inputId, fieldId, label){
+const v = document.getElementById(inputId).value.trim();
+if (!v){ setError(fieldId, `${label} is required.`); return false; }
+clearError(fieldId); return true;
+}
+function requireRadio(name, fieldId, label){
+const checked = document.querySelector(`input[name="${name}"]:checked`);
+if (!checked){ setError(fieldId, `Please select ${label}.`); return false; }
+clearError(fieldId); return true;
+}
+function requireSelectMulti(selectId, fieldId, label){
+const vals = Array.from(document.getElementById(selectId).selectedOptions).map(o=>o.value);
+if (!vals.length){ setError(fieldId, `Please select at least one ${label}.`); return false; }
+clearError(fieldId); return true;
+}
+function requireSelect(selectId, fieldId, label){
+const v = document.getElementById(selectId).value;
+if (!v){ setError(fieldId, `Please choose ${label}.`); return false; }
+clearError(fieldId); return true;
+}
+function requirePicture(dataUrl, fieldId){
+if (!dataUrl){ setError(fieldId, 'Please upload a profile picture.'); return false; }
+clearError(fieldId); return true;
+}
+function requirePhone(picker, fieldId, label){
+const v = picker.getFullNumber().trim();
+if (!v){ setError(fieldId, `${label} is required.`); return false; }
+clearError(fieldId); return true;
+}
+function requireChips(picker, fieldId, label){
+if (!picker.getValues().length){ setError(fieldId, `Please add at least one ${label}.`); return false; }
+clearError(fieldId); return true;
+}
+function scrollToFirstError(){
+const first = document.querySelector('.field.invalid');
+if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
 if (user.role === 'tutor'){
-  document.getElementById('formTitle').textContent = 'Set up your tutor profile';
-  document.getElementById('formSub').textContent = 'Complete this so students can find and book you.';
-  document.getElementById('tutorForm').style.display = 'block';
-  document.getElementById('t_firstName').value = user.firstName || '';
-  document.getElementById('t_lastName').value = user.lastName || '';
-  document.getElementById('t_email').value = user.email || '';
+document.getElementById('formTitle').textContent = 'Set up your tutor profile';
+document.getElementById('formSub').textContent = 'Complete this so students can find and book you. Every field is required except your certificate.';
+document.getElementById('tutorForm').style.display = 'block';
+document.getElementById('t_firstName').value = user.firstName || '';
+document.getElementById('t_lastName').value = user.lastName || '';
+document.getElementById('t_email').value = user.email || '';
 
-  const tPhone = initPhonePicker(document.getElementById('t_phoneMount'));
-  const tWa = initPhonePicker(document.getElementById('t_waMount'));
-  const tLang = initChipPicker(document.getElementById('t_langMount'), {options: LANGUAGES, placeholder:'e.g. English, Urdu, Arabic...'});
+const tPhone = initPhonePicker(document.getElementById('t_phoneMount'));
+const tWa = initPhonePicker(document.getElementById('t_waMount'));
+const tLang = initChipPicker(document.getElementById('t_langMount'), {options: LANGUAGES, placeholder:'e.g. English, Urdu, Arabic...'});
 
-  document.getElementById('t_picFile').addEventListener('change', async (e)=>{
-    const f = e.target.files[0]; if(!f) return;
-    tPic = await readFileAsDataURL(f);
-    document.getElementById('t_picPreview').innerHTML = `<img src="${tPic}">`;
-  });
-  document.getElementById('t_certFile').addEventListener('change', async (e)=>{
-    const f = e.target.files[0]; if(!f) return;
-    tCert = await readFileAsDataURL(f);
-    document.getElementById('t_certName').textContent = f.name;
-  });
-  document.getElementById('t_audioFile').addEventListener('change', async (e)=>{
-    const f = e.target.files[0]; if(!f) return;
-    tAudio = await readFileAsDataURL(f);
-    document.getElementById('t_audioName').textContent = f.name;
-  });
+document.getElementById('t_waSame').addEventListener('change', (e)=>{
+document.getElementById('f_t_wa').style.display = e.target.checked ? 'none' : 'block';
+});
 
-  document.getElementById('tutorForm').addEventListener('submit', (e)=>{
-    e.preventDefault();
-    const subjects = Array.from(document.getElementById('t_subjects').selectedOptions).map(o=>o.value);
-    if (!subjects.length){ showMsg('Please select at least one subject you can teach.'); return; }
+document.getElementById('t_picFile').addEventListener('change', async (e)=>{
+const f = e.target.files[0]; if(!f) return;
+tPic = await readFileAsDataURL(f);
+document.getElementById('t_picPreview').innerHTML = `<img src="${tPic}">`;
+clearError('f_t_pic');
+});
+document.getElementById('t_certFile').addEventListener('change', async (e)=>{
+const f = e.target.files[0]; if(!f) return;
+tCert = await readFileAsDataURL(f);
+document.getElementById('t_certName').textContent = f.name;
+});
+document.getElementById('t_audioFile').addEventListener('change', async (e)=>{
+const f = e.target.files[0]; if(!f) return;
+tAudio = await readFileAsDataURL(f);
+document.getElementById('t_audioName').textContent = f.name;
+clearError('f_t_audio');
+});
 
-    const firstName = document.getElementById('t_firstName').value.trim();
-    const lastName = document.getElementById('t_lastName').value.trim();
+document.getElementById('tutorForm').addEventListener('submit', (e)=>{
+e.preventDefault();
+const waSame = document.getElementById('t_waSame').checked;
+let ok = true;
+ok = requireText('t_firstName','f_t_firstName','First name') && ok;
+ok = requireText('t_lastName','f_t_lastName','Last name') && ok;
+ok = requireRadio('t_gender','f_t_gender','your gender') && ok;
+ok = requireText('t_country','f_t_country','Country') && ok;
+ok = requirePhone(tPhone,'f_t_phone','Phone number') && ok;
+if (!waSame){ ok = requirePhone(tWa,'f_t_wa','WhatsApp number') && ok; } else { clearError('f_t_wa'); }
+ok = requirePicture(tPic,'f_t_pic') && ok;
+ok = requireSelectMulti('t_subjects','f_t_subjects','subject') && ok;
+ok = requireRadio('t_ageGroups','f_t_ageGroups','who you teach') && ok;
+ok = requireSelect('t_platform','f_t_platform','a class platform') && ok;
+ok = requireText('t_availability','f_t_availability','Availability') && ok;
+ok = requireText('t_exp','f_t_exp','Years of experience') && ok;
+if (!tAudio){ setError('f_t_audio','Please upload a recitation sample.'); ok = false; } else { clearError('f_t_audio'); }
+ok = requireText('t_qualification','f_t_qualification','Qualification') && ok;
+ok = requireText('t_bio','f_t_bio','Bio') && ok;
+const priceVal = document.getElementById('t_price').value;
+if (!priceVal || Number(priceVal) <= 0){ setError('f_t_price','Please enter a valid price.'); ok = false; } else { clearError('f_t_price'); }
+ok = requireChips(tLang,'f_t_lang','language') && ok;
 
-    updateUserName(firstName, lastName);
-    saveProfile(user.email, {
-      firstName, lastName,
-      phone: tPhone.getFullNumber(),
-      whatsapp: tWa.getFullNumber(),
-      picture: tPic,
-      subjects,
-      certification: tCert,
-      experience: document.getElementById('t_exp').value.trim(),
-      audioSample: tAudio,
-      qualification: document.getElementById('t_qualification').value.trim(),
-      bio: document.getElementById('t_bio').value.trim(),
-      price: document.getElementById('t_price').value,
-      languages: tLang.getValues(),
-    });
-    location.href = 'profile.html';
-  });
+if (!ok){ scrollToFirstError(); return; }
+
+const subjects = Array.from(document.getElementById('t_subjects').selectedOptions).map(o=>o.value);
+const firstName = document.getElementById('t_firstName').value.trim();
+const lastName = document.getElementById('t_lastName').value.trim();
+updateUserName(firstName, lastName);
+saveProfile(user.email, {
+firstName, lastName,
+gender: document.querySelector('input[name="t_gender"]:checked').value,
+country: document.getElementById('t_country').value.trim(),
+phone: tPhone.getFullNumber(),
+whatsapp: waSame ? tPhone.getFullNumber() : tWa.getFullNumber(),
+picture: tPic,
+subjects,
+ageGroups: document.querySelector('input[name="t_ageGroups"]:checked').value,
+platform: document.getElementById('t_platform').value,
+availability: document.getElementById('t_availability').value.trim(),
+certification: tCert,
+experience: document.getElementById('t_exp').value.trim(),
+audioSample: tAudio,
+qualification: document.getElementById('t_qualification').value.trim(),
+bio: document.getElementById('t_bio').value.trim(),
+price: priceVal,
+languages: tLang.getValues(),
+});
+location.href = 'profile.html';
+});
 }
 
 if (user.role === 'student'){
-  document.getElementById('formTitle').textContent = 'Set up your student profile';
-  document.getElementById('formSub').textContent = 'Tell tutors a bit about yourself so they can help you better.';
-  document.getElementById('studentForm').style.display = 'block';
-  document.getElementById('s_firstName').value = user.firstName || '';
-  document.getElementById('s_lastName').value = user.lastName || '';
-  document.getElementById('s_email').value = user.email || '';
+document.getElementById('formTitle').textContent = 'Set up your student profile';
+document.getElementById('formSub').textContent = 'Tell tutors a bit about yourself so they can help you better. Every field is required.';
+document.getElementById('studentForm').style.display = 'block';
+document.getElementById('s_firstName').value = user.firstName || '';
+document.getElementById('s_lastName').value = user.lastName || '';
+document.getElementById('s_email').value = user.email || '';
 
-  const sPhone = initPhonePicker(document.getElementById('s_phoneMount'));
-  const sWa = initPhonePicker(document.getElementById('s_waMount'));
-  const sLang = initChipPicker(document.getElementById('s_langMount'), {options: LANGUAGES, placeholder:'e.g. English, Urdu...'});
+const sPhone = initPhonePicker(document.getElementById('s_phoneMount'));
+const sWa = initPhonePicker(document.getElementById('s_waMount'));
+const sLang = initChipPicker(document.getElementById('s_langMount'), {options: LANGUAGES, placeholder:'e.g. English, Urdu...'});
 
-  document.getElementById('s_picFile').addEventListener('change', async (e)=>{
-    const f = e.target.files[0]; if(!f) return;
-    sPic = await readFileAsDataURL(f);
-    document.getElementById('s_picPreview').innerHTML = `<img src="${sPic}">`;
-  });
+document.getElementById('s_waSame').addEventListener('change', (e)=>{
+document.getElementById('f_s_wa').style.display = e.target.checked ? 'none' : 'block';
+});
 
-  document.getElementById('studentForm').addEventListener('submit', (e)=>{
-    e.preventDefault();
-    const interests = Array.from(document.getElementById('s_interests').selectedOptions).map(o=>o.value);
-    const firstName = document.getElementById('s_firstName').value.trim();
-    const lastName = document.getElementById('s_lastName').value.trim();
+document.getElementById('s_picFile').addEventListener('change', async (e)=>{
+const f = e.target.files[0]; if(!f) return;
+sPic = await readFileAsDataURL(f);
+document.getElementById('s_picPreview').innerHTML = `<img src="${sPic}">`;
+clearError('f_s_pic');
+});
 
-    updateUserName(firstName, lastName);
-    saveProfile(user.email, {
-      firstName, lastName,
-      phone: sPhone.getFullNumber(),
-      whatsapp: sWa.getFullNumber(),
-      picture: sPic,
-      interests,
-      languages: sLang.getValues(),
-      bio: document.getElementById('s_bio').value.trim(),
-    });
-    location.href = 'profile.html';
-  });
+document.getElementById('studentForm').addEventListener('submit', (e)=>{
+e.preventDefault();
+const waSame = document.getElementById('s_waSame').checked;
+let ok = true;
+ok = requireText('s_firstName','f_s_firstName','First name') && ok;
+ok = requireText('s_lastName','f_s_lastName','Last name') && ok;
+ok = requireRadio('s_gender','f_s_gender','your gender') && ok;
+ok = requireText('s_country','f_s_country','Country') && ok;
+ok = requireRadio('s_ageGroup','f_s_ageGroup','your age group') && ok;
+ok = requirePhone(sPhone,'f_s_phone','Phone number') && ok;
+if (!waSame){ ok = requirePhone(sWa,'f_s_wa','WhatsApp number') && ok; } else { clearError('f_s_wa'); }
+ok = requirePicture(sPic,'f_s_pic') && ok;
+ok = requireSelectMulti('s_interests','f_s_interests','subject') && ok;
+ok = requireChips(sLang,'f_s_lang','language') && ok;
+ok = requireText('s_availability','f_s_availability','Preferred days & time') && ok;
+ok = requireText('s_bio','f_s_bio','This field') && ok;
+
+if (!ok){ scrollToFirstError(); return; }
+
+const interests = Array.from(document.getElementById('s_interests').selectedOptions).map(o=>o.value);
+const firstName = document.getElementById('s_firstName').value.trim();
+const lastName = document.getElementById('s_lastName').value.trim();
+updateUserName(firstName, lastName);
+saveProfile(user.email, {
+firstName, lastName,
+gender: document.querySelector('input[name="s_gender"]:checked').value,
+country: document.getElementById('s_country').value.trim(),
+ageGroup: document.querySelector('input[name="s_ageGroup"]:checked').value,
+phone: sPhone.getFullNumber(),
+whatsapp: waSame ? sPhone.getFullNumber() : sWa.getFullNumber(),
+picture: sPic,
+interests,
+languages: sLang.getValues(),
+availability: document.getElementById('s_availability').value.trim(),
+bio: document.getElementById('s_bio').value.trim(),
+});
+location.href = 'profile.html';
+});
 }
 
 function updateUserName(firstName, lastName){
-  const users = DB.read('ilp_users', []);
-  const idx = users.findIndex(u=>u.email===user.email);
-  if (idx>-1){ users[idx].firstName = firstName; users[idx].lastName = lastName; DB.write('ilp_users', users); }
-  user.firstName = firstName; user.lastName = lastName;
-  setCurrentUser(user);
-}
-function showMsg(text){
-  const msg = document.getElementById('setupMsg');
-  msg.className = 'msg error'; msg.textContent = text;
+const users = DB.read('ilp_users', []);
+const idx = users.findIndex(u=>u.email===user.email);
+if (idx>-1){ users[idx].firstName = firstName; users[idx].lastName = lastName; DB.write('ilp_users', users); }
+user.firstName = firstName; user.lastName = lastName;
+setCurrentUser(user);
 }
 </script>
 </body>
