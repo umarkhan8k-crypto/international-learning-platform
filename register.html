@@ -8,76 +8,64 @@
 </head>
 <body data-page="">
 <div id="nav"></div>
-
 <section style="padding:56px 0;">
-  <div class="container">
-    <div class="form-shell">
-      <h2>Create your account</h2>
-      <p class="form-sub">Join as a student or a tutor — it's free.</p>
-      <div id="regMsg" class="msg"></div>
-      <div class="role-toggle">
-        <button type="button" id="roleStudent" class="active">I'm a student</button>
-        <button type="button" id="roleTutor">I'm a tutor</button>
-      </div>
-      <form id="registerForm">
-        <div class="grid-2" style="gap:12px;">
-          <div class="field"><label>First name</label><input type="text" id="firstName" required></div>
-          <div class="field"><label>Last name</label><input type="text" id="lastName" required></div>
-        </div>
-        <div class="field"><label>Email</label><input type="email" id="email" required></div>
-        <div class="field"><label>Password</label><input type="password" id="password" required minlength="6"></div>
-        <div class="field" id="subjectsField" style="display:none;">
-          <label>Subjects you can teach</label>
-          <select id="subjects" multiple style="height:110px;">
-            <option>Qaida</option><option>Recitation</option><option>Hifz</option>
-            <option>Tajweed</option><option>Arabic</option>
-          </select>
-        </div>
-        <button type="submit" class="btn primary block">Create account</button>
-      </form>
-      <p class="form-foot">Already have an account? <a href="login.html">Log in</a></p>
-    </div>
-  </div>
+<div class="container">
+<div class="form-shell">
+<h2>Create your account</h2>
+<p class="form-sub">Join as a student or a tutor — it's free. You'll complete your full profile next.</p>
+<div id="regMsg" class="msg"></div>
+<div class="role-toggle">
+<button type="button" id="roleStudent" class="active">I'm a student</button>
+<button type="button" id="roleTutor">I'm a tutor</button>
+</div>
+<form id="registerForm">
+<div class="field-row">
+<div class="field"><label>First name</label><input type="text" id="firstName" required></div>
+<div class="field"><label>Last name</label><input type="text" id="lastName" required></div>
+</div>
+<div class="field"><label>Email</label><input type="email" id="email" required></div>
+<div class="field"><label>Password</label><input type="password" id="password" required minlength="6"></div>
+<button type="submit" class="btn primary block">Create account</button>
+</form>
+<p class="form-foot">Already have an account? <a href="login.html">Log in</a></p>
+</div>
+</div>
 </section>
-
 <div id="footer"></div>
 <script src="app.js"></script>
 <script>
-  let role = 'student';
-  document.getElementById('roleStudent').addEventListener('click', ()=>{
-    role='student';
-    document.getElementById('roleStudent').classList.add('active');
-    document.getElementById('roleTutor').classList.remove('active');
-    document.getElementById('subjectsField').style.display='none';
-  });
-  document.getElementById('roleTutor').addEventListener('click', ()=>{
-    role='tutor';
-    document.getElementById('roleTutor').classList.add('active');
-    document.getElementById('roleStudent').classList.remove('active');
-    document.getElementById('subjectsField').style.display='block';
-  });
-
-  document.getElementById('registerForm').addEventListener('submit', e=>{
-    e.preventDefault();
-    const msg = document.getElementById('regMsg');
-    const email = document.getElementById('email').value.trim().toLowerCase();
-    const users = DB.read('ilp_users', []);
-    if (users.find(u=>u.email===email)){
-      msg.className='msg error'; msg.textContent='This email is already registered. Please log in.'; return;
-    }
-    const user = {
-      firstName: document.getElementById('firstName').value.trim(),
-      lastName: document.getElementById('lastName').value.trim(),
-      email, password: document.getElementById('password').value,
-      role,
-      createdAt: new Date().toISOString(),
-    };
-    users.push(user);
-    DB.write('ilp_users', users);
-    setCurrentUser(user);
-    msg.className='msg success'; msg.textContent='Account created! Redirecting to your dashboard...';
-    setTimeout(()=> location.href='dashboard.html', 900);
-  });
+let role = 'student';
+document.getElementById('roleStudent').addEventListener('click', ()=>{
+  role='student';
+  document.getElementById('roleStudent').classList.add('active');
+  document.getElementById('roleTutor').classList.remove('active');
+});
+document.getElementById('roleTutor').addEventListener('click', ()=>{
+  role='tutor';
+  document.getElementById('roleTutor').classList.add('active');
+  document.getElementById('roleStudent').classList.remove('active');
+});
+document.getElementById('registerForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  const msg = document.getElementById('regMsg');
+  const email = document.getElementById('email').value.trim().toLowerCase();
+  const users = DB.read('ilp_users', []);
+  if (users.find(u=>u.email===email)){
+    msg.className='msg error'; msg.textContent='This email is already registered. Please log in.'; return;
+  }
+  const user = {
+    firstName: document.getElementById('firstName').value.trim(),
+    lastName: document.getElementById('lastName').value.trim(),
+    email, password: document.getElementById('password').value,
+    role,
+    createdAt: new Date().toISOString(),
+  };
+  users.push(user);
+  DB.write('ilp_users', users);
+  setCurrentUser(user);
+  msg.className='msg success'; msg.textContent='Account created! Let\'s set up your profile...';
+  setTimeout(()=> location.href='profile-setup.html', 700);
+});
 </script>
 </body>
 </html>
