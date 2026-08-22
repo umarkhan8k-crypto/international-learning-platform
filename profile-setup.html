@@ -8,14 +8,23 @@
 </head>
 <body data-page="">
 <div id="nav"></div>
-<section style="padding:48px 0;">
+
+<section class="setup-hero">
+  <div class="container">
+    <div class="eyebrow">Almost There</div>
+    <h1 id="formTitle">Complete your profile</h1>
+    <p id="formSub">Just a few more details so students and tutors know who you are.</p>
+  </div>
+</section>
+
+<section style="padding:40px 0;">
 <div class="container">
 <div class="form-shell wide">
-<h2 id="formTitle">Complete your profile</h2>
-<p class="form-sub" id="formSub">Just a few more details so students and tutors know who you are.</p>
 <div id="setupMsg" class="msg"></div>
 
 <form id="tutorForm" style="display:none;" novalidate>
+
+<div class="section-label">Your details</div>
 <div class="field-row">
 <div class="field" id="f_t_firstName"><label>First name</label><input type="text" id="t_firstName"><div class="field-error"></div></div>
 <div class="field" id="f_t_lastName"><label>Last name</label><input type="text" id="t_lastName"><div class="field-error"></div></div>
@@ -28,7 +37,7 @@
 </div>
 <div class="field-error"></div>
 </div>
-<div class="field" id="f_t_country"><label>Country</label><input type="text" id="t_country" placeholder="e.g. Pakistan"><div class="field-error"></div></div>
+<div class="field" id="f_t_country"><label>Country</label><div id="t_countryMount"></div><div class="field-error"></div></div>
 <div class="field" id="f_t_phone">
 <label>Phone number</label>
 <div id="t_phoneMount"></div>
@@ -43,22 +52,16 @@
 <div class="field" id="f_t_pic">
 <label>Profile picture</label>
 <div class="pic-picker">
-<div class="pic-preview" id="t_picPreview">No photo</div>
-<label class="upload-box" style="flex:1;">
-<input type="file" id="t_picFile" accept="image/*">
-Tap to upload a photo
-</label>
+<div id="t_picMount"></div>
 </div>
 <div class="field-error"></div>
 </div>
 <div class="field"><label>Email</label><input type="email" id="t_email" disabled></div>
+
+<div class="section-label">Teaching info</div>
 <div class="field" id="f_t_subjects">
 <label>Subjects you can teach</label>
-<select id="t_subjects" multiple style="height:110px;">
-<option>Qaida</option><option>Recitation</option><option>Hifz</option>
-<option>Tajweed</option><option>Arabic</option>
-</select>
-<div class="hint">Hold Ctrl / Cmd to select more than one, or tap multiple on mobile.</div>
+<div id="t_subjectsMount"></div>
 <div class="field-error"></div>
 </div>
 <div class="field" id="f_t_ageGroups">
@@ -79,22 +82,25 @@ Tap to upload a photo
 <div class="field-error"></div>
 </div>
 <div class="field" id="f_t_availability"><label>Availability</label><input type="text" id="t_availability" placeholder="e.g. Weekday evenings (GMT+5)"><div class="field-error"></div></div>
+
+<div class="section-label">Certification &amp; experience</div>
 <div class="field">
 <label>Hifz / Ijazah certification <span style="font-weight:400;">(optional)</span></label>
-<label class="upload-box">
-<input type="file" id="t_certFile" accept="image/*,.pdf">
-Tap to upload your certificate — leave empty if you don't have one
-</label>
-<div class="fname" id="t_certName"></div>
+<div class="cert-type-row">
+<select id="t_certType">
+<option value="">Select certificate type</option>
+<option value="Hifz Ijazah">Hifz Ijazah</option>
+<option value="Tajweed Ijazah">Tajweed Ijazah</option>
+</select>
+</div>
+<div class="hint" style="margin:-4px 0 8px;">Only Hifz Ijazah or Tajweed Ijazah certificates are accepted.</div>
+<div id="t_certMount"></div>
+<div class="field-error"></div>
 </div>
 <div class="field" id="f_t_exp"><label>Years of experience</label><input type="text" id="t_exp" placeholder="e.g. 5 years"><div class="field-error"></div></div>
 <div class="field" id="f_t_audio">
 <label>Recitation sample (audio)</label>
-<label class="upload-box">
-<input type="file" id="t_audioFile" accept="audio/*">
-Tap to upload a short recitation sample
-</label>
-<div class="fname" id="t_audioName"></div>
+<div id="t_audioMount"></div>
 <div class="hint">Please upload your own, original recitation. Copied, downloaded or edited/auto-tuned audio will not be accepted.</div>
 <div class="field-error"></div>
 </div>
@@ -118,6 +124,7 @@ Tap to upload a short recitation sample
 </form>
 
 <form id="studentForm" style="display:none;" novalidate>
+<div class="section-label">Your details</div>
 <div class="field-row">
 <div class="field" id="f_s_firstName"><label>First name</label><input type="text" id="s_firstName"><div class="field-error"></div></div>
 <div class="field" id="f_s_lastName"><label>Last name</label><input type="text" id="s_lastName"><div class="field-error"></div></div>
@@ -130,7 +137,7 @@ Tap to upload a short recitation sample
 </div>
 <div class="field-error"></div>
 </div>
-<div class="field" id="f_s_country"><label>Country</label><input type="text" id="s_country" placeholder="e.g. UK"><div class="field-error"></div></div>
+<div class="field" id="f_s_country"><label>Country</label><div id="s_countryMount"></div><div class="field-error"></div></div>
 <div class="field" id="f_s_ageGroup">
 <label>Age group</label>
 <div class="radio-row">
@@ -154,21 +161,14 @@ Tap to upload a short recitation sample
 <div class="field" id="f_s_pic">
 <label>Profile picture</label>
 <div class="pic-picker">
-<div class="pic-preview" id="s_picPreview">No photo</div>
-<label class="upload-box" style="flex:1;">
-<input type="file" id="s_picFile" accept="image/*">
-Tap to upload a photo
-</label>
+<div id="s_picMount"></div>
 </div>
 <div class="field-error"></div>
 </div>
 <div class="field"><label>Email</label><input type="email" id="s_email" disabled></div>
 <div class="field" id="f_s_interests">
 <label>What would you like to learn?</label>
-<select id="s_interests" multiple style="height:110px;">
-<option>Qaida</option><option>Recitation</option><option>Hifz</option>
-<option>Tajweed</option><option>Arabic</option>
-</select>
+<div id="s_interestsMount"></div>
 <div class="field-error"></div>
 </div>
 <div class="field" id="f_s_lang">
@@ -214,9 +214,8 @@ const checked = document.querySelector(`input[name="${name}"]:checked`);
 if (!checked){ setError(fieldId, `Please select ${label}.`); return false; }
 clearError(fieldId); return true;
 }
-function requireSelectMulti(selectId, fieldId, label){
-const vals = Array.from(document.getElementById(selectId).selectedOptions).map(o=>o.value);
-if (!vals.length){ setError(fieldId, `Please select at least one ${label}.`); return false; }
+function requirePickerValues(picker, fieldId, label){
+if (!picker.getValues().length){ setError(fieldId, `Please select at least one ${label}.`); return false; }
 clearError(fieldId); return true;
 }
 function requireSelect(selectId, fieldId, label){
@@ -226,6 +225,10 @@ clearError(fieldId); return true;
 }
 function requirePicture(dataUrl, fieldId){
 if (!dataUrl){ setError(fieldId, 'Please upload a profile picture.'); return false; }
+clearError(fieldId); return true;
+}
+function requireCountry(picker, fieldId){
+if (!picker.getValue()){ setError(fieldId, 'Please select your country.'); return false; }
 clearError(fieldId); return true;
 }
 function requirePhone(picker, fieldId, label){
@@ -250,30 +253,30 @@ document.getElementById('t_firstName').value = user.firstName || '';
 document.getElementById('t_lastName').value = user.lastName || '';
 document.getElementById('t_email').value = user.email || '';
 
+const tCountry = initCountrySelect(document.getElementById('t_countryMount'), {placeholder:'Select your country'});
 const tPhone = initPhonePicker(document.getElementById('t_phoneMount'));
 const tWa = initPhonePicker(document.getElementById('t_waMount'));
 const tLang = initChipPicker(document.getElementById('t_langMount'), {options: LANGUAGES, placeholder:'e.g. English, Urdu, Arabic...'});
+const tSubjects = initSubjectPicker(document.getElementById('t_subjectsMount'), {options:['Qaida','Recitation','Hifz','Tajweed','Arabic'], placeholder:'Tap to choose subjects'});
+
+const tPicBox = initUploadBox(document.getElementById('t_picMount'), {
+  accept:'image/*', kind:'image', label:'Tap to upload a photo', previewShape:'circle',
+  onChange:(dataUrl)=>{ tPic = dataUrl; clearError('f_t_pic'); },
+  onClear:()=>{ tPic=''; },
+});
+const tCertBox = initUploadBox(document.getElementById('t_certMount'), {
+  accept:'image/*,.pdf', kind:'file', label:"Tap to upload your certificate — leave empty if you don't have one",
+  onChange:(dataUrl)=>{ tCert = dataUrl; },
+  onClear:()=>{ tCert=''; },
+});
+const tAudioBox = initUploadBox(document.getElementById('t_audioMount'), {
+  accept:'audio/*', kind:'audio', label:'Tap to upload a short recitation sample',
+  onChange:(dataUrl)=>{ tAudio = dataUrl; clearError('f_t_audio'); },
+  onClear:()=>{ tAudio=''; },
+});
 
 document.getElementById('t_waSame').addEventListener('change', (e)=>{
 document.getElementById('f_t_wa').style.display = e.target.checked ? 'none' : 'block';
-});
-
-document.getElementById('t_picFile').addEventListener('change', async (e)=>{
-const f = e.target.files[0]; if(!f) return;
-tPic = await readFileAsDataURL(f);
-document.getElementById('t_picPreview').innerHTML = `<img src="${tPic}">`;
-clearError('f_t_pic');
-});
-document.getElementById('t_certFile').addEventListener('change', async (e)=>{
-const f = e.target.files[0]; if(!f) return;
-tCert = await readFileAsDataURL(f);
-document.getElementById('t_certName').textContent = f.name;
-});
-document.getElementById('t_audioFile').addEventListener('change', async (e)=>{
-const f = e.target.files[0]; if(!f) return;
-tAudio = await readFileAsDataURL(f);
-document.getElementById('t_audioName').textContent = f.name;
-clearError('f_t_audio');
 });
 
 document.getElementById('tutorForm').addEventListener('submit', (e)=>{
@@ -283,11 +286,11 @@ let ok = true;
 ok = requireText('t_firstName','f_t_firstName','First name') && ok;
 ok = requireText('t_lastName','f_t_lastName','Last name') && ok;
 ok = requireRadio('t_gender','f_t_gender','your gender') && ok;
-ok = requireText('t_country','f_t_country','Country') && ok;
+ok = requireCountry(tCountry,'f_t_country') && ok;
 ok = requirePhone(tPhone,'f_t_phone','Phone number') && ok;
 if (!waSame){ ok = requirePhone(tWa,'f_t_wa','WhatsApp number') && ok; } else { clearError('f_t_wa'); }
 ok = requirePicture(tPic,'f_t_pic') && ok;
-ok = requireSelectMulti('t_subjects','f_t_subjects','subject') && ok;
+ok = requirePickerValues(tSubjects,'f_t_subjects','subject') && ok;
 ok = requireRadio('t_ageGroups','f_t_ageGroups','who you teach') && ok;
 ok = requireSelect('t_platform','f_t_platform','a class platform') && ok;
 ok = requireText('t_availability','f_t_availability','Availability') && ok;
@@ -301,14 +304,14 @@ ok = requireChips(tLang,'f_t_lang','language') && ok;
 
 if (!ok){ scrollToFirstError(); return; }
 
-const subjects = Array.from(document.getElementById('t_subjects').selectedOptions).map(o=>o.value);
+const subjects = tSubjects.getValues();
 const firstName = document.getElementById('t_firstName').value.trim();
 const lastName = document.getElementById('t_lastName').value.trim();
 updateUserName(firstName, lastName);
 saveProfile(user.email, {
 firstName, lastName,
 gender: document.querySelector('input[name="t_gender"]:checked').value,
-country: document.getElementById('t_country').value.trim(),
+country: tCountry.getValue(),
 phone: tPhone.getFullNumber(),
 whatsapp: waSame ? tPhone.getFullNumber() : tWa.getFullNumber(),
 picture: tPic,
@@ -317,6 +320,7 @@ ageGroups: document.querySelector('input[name="t_ageGroups"]:checked').value,
 platform: document.getElementById('t_platform').value,
 availability: document.getElementById('t_availability').value.trim(),
 certification: tCert,
+certificationType: document.getElementById('t_certType').value,
 experience: document.getElementById('t_exp').value.trim(),
 audioSample: tAudio,
 qualification: document.getElementById('t_qualification').value.trim(),
@@ -336,19 +340,20 @@ document.getElementById('s_firstName').value = user.firstName || '';
 document.getElementById('s_lastName').value = user.lastName || '';
 document.getElementById('s_email').value = user.email || '';
 
+const sCountry = initCountrySelect(document.getElementById('s_countryMount'), {placeholder:'Select your country'});
 const sPhone = initPhonePicker(document.getElementById('s_phoneMount'));
 const sWa = initPhonePicker(document.getElementById('s_waMount'));
 const sLang = initChipPicker(document.getElementById('s_langMount'), {options: LANGUAGES, placeholder:'e.g. English, Urdu...'});
+const sInterests = initSubjectPicker(document.getElementById('s_interestsMount'), {options:['Qaida','Recitation','Hifz','Tajweed','Arabic'], placeholder:'Tap to choose subjects'});
+
+const sPicBox = initUploadBox(document.getElementById('s_picMount'), {
+  accept:'image/*', kind:'image', label:'Tap to upload a photo', previewShape:'circle',
+  onChange:(dataUrl)=>{ sPic = dataUrl; clearError('f_s_pic'); },
+  onClear:()=>{ sPic=''; },
+});
 
 document.getElementById('s_waSame').addEventListener('change', (e)=>{
 document.getElementById('f_s_wa').style.display = e.target.checked ? 'none' : 'block';
-});
-
-document.getElementById('s_picFile').addEventListener('change', async (e)=>{
-const f = e.target.files[0]; if(!f) return;
-sPic = await readFileAsDataURL(f);
-document.getElementById('s_picPreview').innerHTML = `<img src="${sPic}">`;
-clearError('f_s_pic');
 });
 
 document.getElementById('studentForm').addEventListener('submit', (e)=>{
@@ -358,26 +363,26 @@ let ok = true;
 ok = requireText('s_firstName','f_s_firstName','First name') && ok;
 ok = requireText('s_lastName','f_s_lastName','Last name') && ok;
 ok = requireRadio('s_gender','f_s_gender','your gender') && ok;
-ok = requireText('s_country','f_s_country','Country') && ok;
+ok = requireCountry(sCountry,'f_s_country') && ok;
 ok = requireRadio('s_ageGroup','f_s_ageGroup','your age group') && ok;
 ok = requirePhone(sPhone,'f_s_phone','Phone number') && ok;
 if (!waSame){ ok = requirePhone(sWa,'f_s_wa','WhatsApp number') && ok; } else { clearError('f_s_wa'); }
 ok = requirePicture(sPic,'f_s_pic') && ok;
-ok = requireSelectMulti('s_interests','f_s_interests','subject') && ok;
+ok = requirePickerValues(sInterests,'f_s_interests','subject') && ok;
 ok = requireChips(sLang,'f_s_lang','language') && ok;
 ok = requireText('s_availability','f_s_availability','Preferred days & time') && ok;
 ok = requireText('s_bio','f_s_bio','This field') && ok;
 
 if (!ok){ scrollToFirstError(); return; }
 
-const interests = Array.from(document.getElementById('s_interests').selectedOptions).map(o=>o.value);
+const interests = sInterests.getValues();
 const firstName = document.getElementById('s_firstName').value.trim();
 const lastName = document.getElementById('s_lastName').value.trim();
 updateUserName(firstName, lastName);
 saveProfile(user.email, {
 firstName, lastName,
 gender: document.querySelector('input[name="s_gender"]:checked').value,
-country: document.getElementById('s_country').value.trim(),
+country: sCountry.getValue(),
 ageGroup: document.querySelector('input[name="s_ageGroup"]:checked').value,
 phone: sPhone.getFullNumber(),
 whatsapp: waSame ? sPhone.getFullNumber() : sWa.getFullNumber(),
