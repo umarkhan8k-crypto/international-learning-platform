@@ -41,10 +41,10 @@ function renderNav(active){
   const linkHtml = links.map(([href,label]) =>
     `<a href="${href}" class="${active===label?'active':''}">${label}</a>`).join('');
   const currentFile = (location.pathname.split('/').pop() || 'index.html');
-  const accountPages = ['dashboard.html','profile.html','profile-setup.html'];
-  const onAccountPage = accountPages.includes(currentFile);
+  const profilePages = ['profile.html','profile-setup.html'];
+  const onProfilePage = profilePages.includes(currentFile);
   const cta = user
-    ? `<a class="nav-user ${onAccountPage ? 'active' : ''}" href="dashboard.html">${initials(user.firstName+' '+user.lastName)} · Dashboard</a>
+    ? `<a class="nav-user ${onProfilePage ? 'active' : ''}" href="profile.html">${initials(user.firstName+' '+user.lastName)} · Your Profile</a>
        <button class="btn ghost small" onclick="logout()">Log out</button>`
     : `<a class="btn ghost small" href="login.html">Login</a>
        <a class="btn primary small" href="register.html">Register</a>`;
