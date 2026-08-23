@@ -81,7 +81,7 @@ box-shadow:0 4px 14px rgba(15,35,25,0.06);
 max-width:1140px;margin:0 auto;padding:14px 24px;
 display:flex;align-items:center;justify-content:space-between;gap:20px;
 }
-.brand{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-weight:700;font-size:1.25rem;color:var(--ink);}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-weight:700;font-size:1.25rem;color:var(--brand);}
 .brand .ornament{width:30px;height:30px;background:var(--brand);border-radius:50%;padding:5px;}
 .brand .ornament path{fill:#fff;}
 .nav-links{display:flex;align-items:center;gap:10px;}
@@ -95,6 +95,8 @@ display:flex;align-items:center;justify-content:space-between;gap:20px;
 .nav-cta .btn.primary{background:var(--brand);color:#fff;border:1px solid var(--brand);}
 .nav-cta .btn.primary:hover{background:var(--brand-mid);}
 .nav-user{font-size:.85rem;font-weight:600;padding:8px 16px;border-radius:999px;}
+.nav-user.active{background:var(--brand);color:#fff;border-color:var(--brand);}
+.nav-user.active:hover{background:var(--brand-mid);color:#fff;}
 .nav-toggle{display:none;background:none;border:none;font-size:1.5rem;cursor:pointer;color:var(--ink);}
 @media(max-width:860px){
 .nav-links{
@@ -291,7 +293,7 @@ footer,#footer{margin-top:auto;background:var(--brand-dark);color:rgba(255,255,2
 .form-shell.wide{max-width:640px;}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 @media(max-width:560px){.field-row{grid-template-columns:1fr;}}
-.pic-picker{display:flex;align-items:center;gap:14px;}
+.pic-picker{display:block;}
 .pic-preview{width:64px;height:64px;border-radius:50%;background:var(--surface);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--ink-2);flex:none;overflow:hidden;text-align:center;}
 .pic-preview img{width:100%;height:100%;object-fit:cover;}
 .upload-box{display:flex;align-items:center;justify-content:center;text-align:center;border:1.5px dashed var(--line);border-radius:9px;padding:14px;font-size:.85rem;color:var(--ink-2);cursor:pointer;background:var(--surface);}
@@ -441,23 +443,28 @@ footer,#footer{margin-top:auto;background:var(--brand-dark);color:rgba(255,255,2
    ===================================================================== */
 .upload-slot{display:block;}
 .upload-preview{
-  display:flex;align-items:center;gap:12px;
-  border:1px solid var(--line);border-radius:9px;background:var(--brand-light);
-  padding:10px 14px;
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  border:1px solid var(--line);border-radius:12px;background:var(--brand-light);
+  padding:14px;
 }
-.upload-preview.circle{
-  width:96px;height:96px;border-radius:50%;padding:0;overflow:hidden;justify-content:center;
+.upload-preview-media{display:flex;align-items:center;justify-content:center;width:100%;}
+.upload-preview.circle .upload-preview-media{
+  width:110px;height:110px;border-radius:50%;overflow:hidden;border:3px solid #fff;box-shadow:var(--shadow);
 }
-.upload-preview.circle img{width:100%;height:100%;object-fit:cover;}
-.upload-preview:not(.circle) img{width:52px;height:52px;object-fit:cover;border-radius:8px;flex:none;}
-.upload-file-badge{flex:1;font-size:.86rem;font-weight:600;color:var(--brand-dark);word-break:break-all;}
+.upload-preview.circle .upload-preview-media img{width:100%;height:100%;object-fit:cover;}
+.upload-preview:not(.circle) .upload-preview-media img{
+  max-width:220px;max-height:220px;width:auto;object-fit:cover;border-radius:9px;border:1px solid var(--line);
+}
+.upload-file-badge{font-size:.86rem;font-weight:600;color:var(--brand-dark);word-break:break-all;text-align:center;}
 .upload-clear{
   border:1px solid var(--brand);background:#fff;color:var(--brand);border-radius:999px;
-  padding:5px 12px;font-size:.78rem;font-weight:700;cursor:pointer;flex:none;
+  padding:6px 18px;font-size:.78rem;font-weight:700;cursor:pointer;flex:none;
 }
 .upload-clear:hover{background:var(--brand);color:#fff;}
-.pic-picker .upload-slot{flex:1;}
-.pic-picker .upload-preview.circle{width:64px;height:64px;}
+.upload-status{font-size:.8rem;margin-top:6px;font-weight:600;}
+.upload-status.checking{color:var(--ink-2);font-style:italic;}
+.upload-status.error{color:var(--rose);}
+.upload-status.success{color:var(--brand-dark);}
 
 /* certificate type restriction row */
 .cert-type-row{margin-bottom:10px;}
