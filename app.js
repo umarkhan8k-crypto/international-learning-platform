@@ -40,8 +40,11 @@ function renderNav(active){
   ];
   const linkHtml = links.map(([href,label]) =>
     `<a href="${href}" class="${active===label?'active':''}">${label}</a>`).join('');
+  const currentFile = (location.pathname.split('/').pop() || 'index.html');
+  const accountPages = ['dashboard.html','profile.html','profile-setup.html'];
+  const onAccountPage = accountPages.includes(currentFile);
   const cta = user
-    ? `<a class="nav-user" href="dashboard.html">${initials(user.firstName+' '+user.lastName)} · Dashboard</a>
+    ? `<a class="nav-user ${onAccountPage ? 'active' : ''}" href="dashboard.html">${initials(user.firstName+' '+user.lastName)} · Dashboard</a>
        <button class="btn ghost small" onclick="logout()">Log out</button>`
     : `<a class="btn ghost small" href="login.html">Login</a>
        <a class="btn primary small" href="register.html">Register</a>`;
@@ -686,11 +689,17 @@ function initUploadBox(mount, opts){
       <input type="file" accept="${opts.accept || ''}">
       <span class="upload-prompt">${opts.label || 'Tap to upload'}</span>
     </label>
-    <div class="upload-preview ${opts.previewShape === 'circle' ? 'circle' : ''}" style="display:none;"></div>
+    <div class="upload-preview ${opts.previewShape === 'circle' ? 'circle' : ''}" style="display:none;">
+      <div class="upload-preview-media"></div>
+      <button type="button" class="upload-clear">Change</button>
+    </div>
+    <div class="upload-status"></div>
   `;
   const input = mount.querySelector('input[type=file]');
   const promptLabel = mount.querySelector('.upload-box');
   const preview = mount.querySelector('.upload-preview');
+  const mediaEl = mount.querySelector('.upload-preview-media');
+  const statusEl = mount.querySelector('.upload-status');
   let dataUrl = '';
   let fileName = '';
 
@@ -698,24 +707,30 @@ function initUploadBox(mount, opts){
     promptLabel.style.display = 'none';
     preview.style.display = 'flex';
     if (kind === 'image'){
-      preview.innerHTML = `<img src="${dataUrl}"><button type="button" class="upload-clear">Change</button>`;
+      mediaEl.innerHTML = `<img src="${dataUrl}">`;
     } else if (kind === 'audio'){
-      preview.innerHTML = `<span class="upload-file-badge">🎙️ ${fileName}</span><button type="button" class="upload-clear">Change</button>`;
+      mediaEl.innerHTML = `<span class="upload-file-badge">🎙️ ${fileName}</span>`;
     } else {
-      preview.innerHTML = `<span class="upload-file-badge">📄 ${fileName}</span><button type="button" class="upload-clear">Change</button>`;
+      mediaEl.innerHTML = `<span class="upload-file-badge">📄 ${fileName}</span>`;
     }
-    preview.querySelector('.upload-clear').addEventListener('click', (e) => {
-      e.preventDefault(); e.stopPropagation();
-      clear();
-    });
   }
   function clear(){
     dataUrl = ''; fileName = '';
     input.value = '';
     promptLabel.style.display = 'flex';
     preview.style.display = 'none';
-    preview.innerHTML = '';
+    mediaEl.innerHTML = '';
     if (opts.onClear) opts.onClear();
+  }
+  mount.querySelector('.upload-clear').addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    clear();
+    setStatus('');
+  });
+
+  function setStatus(msg, type){
+    statusEl.textContent = msg || '';
+    statusEl.className = 'upload-status' + (type ? ' ' + type : '');
   }
 
   input.addEventListener('change', async (e) => {
@@ -724,6 +739,7 @@ function initUploadBox(mount, opts){
     fileName = f.name;
     dataUrl = await readFileAsDataURL(f);
     showPreview();
+    setStatus('');
     if (opts.onChange) opts.onChange(dataUrl, f);
   });
 
@@ -731,7 +747,42 @@ function initUploadBox(mount, opts){
     getValue(){ return dataUrl; },
     getFileName(){ return fileName; },
     clear,
+    setStatus,
   };
+}
+
+/* ===================================================================
+   OCR text extraction — used to sanity-check uploaded certificates.
+   Requires Tesseract.js to be included on the page (window.Tesseract).
+   This is a best-effort keyword check, not a guarantee of authenticity.
+   =================================================================== */
+async function ocrExtractText(dataUrl){
+  if (typeof Tesseract === 'undefined') return '';
+  try{
+    const result = await Tesseract.recognize(dataUrl, 'eng');
+    return (result && result.data && result.data.text) ? result.data.text.toLowerCase() : '';
+  }catch(e){
+    console.error('OCR failed', e);
+    return '';
+  }
+}
+
+/* ===================================================================
+   Read an audio file's duration (in seconds) before accepting it.
+   =================================================================== */
+function getAudioDuration(file){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => {
+      const d = audio.duration;
+      URL.revokeObjectURL(url);
+      resolve(d);
+    };
+    audio.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read audio file')); };
+    audio.src = url;
+  });
 }
 
 /* ===================================================================
