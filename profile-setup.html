@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Complete Your Profile — International Learning Platform</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body data-page="">
 <div id="nav"></div>
@@ -93,15 +94,16 @@
 <option value="Tajweed Ijazah">Tajweed Ijazah</option>
 </select>
 </div>
-<div class="hint" style="margin:-4px 0 8px;">Only Hifz Ijazah or Tajweed Ijazah certificates are accepted.</div>
+<div class="hint" style="margin:-4px 0 8px;">Select the certificate type first, then upload — only Hifz Ijazah or Tajweed Ijazah certificates are accepted. The certificate is checked automatically; anything else will be rejected.</div>
 <div id="t_certMount"></div>
 <div class="field-error"></div>
 </div>
 <div class="field" id="f_t_exp"><label>Years of experience</label><input type="text" id="t_exp" placeholder="e.g. 5 years"><div class="field-error"></div></div>
 <div class="field" id="f_t_audio">
 <label>Recitation sample (audio)</label>
+<div class="hint" style="margin:-2px 0 8px;">Upload only your own Quran recitation — nothing else will be accepted. Must be between 1 and 2 minutes long.</div>
 <div id="t_audioMount"></div>
-<div class="hint">Please upload your own, original recitation. Copied, downloaded or edited/auto-tuned audio will not be accepted.</div>
+<div class="hint">Copied, downloaded or edited/auto-tuned audio will not be accepted.</div>
 <div class="field-error"></div>
 </div>
 <div class="field" id="f_t_qualification"><label>Qualification</label><input type="text" id="t_qualification" placeholder="e.g. Al-Azhar graduate, Ijazah in Hafs"><div class="field-error"></div></div>
@@ -265,13 +267,55 @@ const tPicBox = initUploadBox(document.getElementById('t_picMount'), {
   onClear:()=>{ tPic=''; },
 });
 const tCertBox = initUploadBox(document.getElementById('t_certMount'), {
-  accept:'image/*,.pdf', kind:'file', label:"Tap to upload your certificate — leave empty if you don't have one",
-  onChange:(dataUrl)=>{ tCert = dataUrl; },
+  accept:'image/*', kind:'image', label:"Tap to upload your certificate — leave empty if you don't have one",
+  onChange: async (dataUrl) => {
+    const certType = document.getElementById('t_certType').value;
+    if (!certType){
+      tCertBox.setStatus('Please select a certificate type above before uploading.', 'error');
+      tCertBox.clear();
+      tCert = '';
+      return;
+    }
+    tCertBox.setStatus('Checking certificate...', 'checking');
+    const text = await ocrExtractText(dataUrl);
+    const keywords = certType === 'Hifz Ijazah' ? ['hifz','hafiz','huffaz'] : ['tajweed','tajwid'];
+    const passed = keywords.some(k => text.includes(k));
+    if (!passed){
+      tCertBox.setStatus('⚠ Only Hifz or Tajweed Ijazah certificates are accepted.', 'error');
+      tCertBox.clear();
+      tCert = '';
+      return;
+    }
+    tCertBox.setStatus('Certificate looks valid ✓', 'success');
+    tCert = dataUrl;
+  },
   onClear:()=>{ tCert=''; },
+});
+document.getElementById('t_certType').addEventListener('change', ()=>{
+  // Changing the certificate type after a file is already uploaded invalidates the previous check.
+  if (tCertBox.getValue()){ tCertBox.clear(); tCert=''; tCertBox.setStatus('Certificate type changed — please re-upload.', 'checking'); }
 });
 const tAudioBox = initUploadBox(document.getElementById('t_audioMount'), {
   accept:'audio/*', kind:'audio', label:'Tap to upload a short recitation sample',
-  onChange:(dataUrl)=>{ tAudio = dataUrl; clearError('f_t_audio'); },
+  onChange: async (dataUrl, file) => {
+    tAudioBox.setStatus('Checking audio length...', 'checking');
+    try{
+      const duration = await getAudioDuration(file);
+      if (duration < 60 || duration > 120){
+        tAudioBox.setStatus('⚠ Recitation audio must be between 1 and 2 minutes long.', 'error');
+        tAudioBox.clear();
+        tAudio = '';
+        return;
+      }
+      tAudioBox.setStatus('Audio length OK ✓', 'success');
+      tAudio = dataUrl;
+      clearError('f_t_audio');
+    }catch(err){
+      tAudioBox.setStatus('Could not read this audio file — please try another.', 'error');
+      tAudioBox.clear();
+      tAudio = '';
+    }
+  },
   onClear:()=>{ tAudio=''; },
 });
 
