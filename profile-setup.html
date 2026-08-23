@@ -94,7 +94,7 @@
 <option value="Tajweed Ijazah">Tajweed Ijazah</option>
 </select>
 </div>
-<div class="hint" style="margin:-4px 0 8px;">Select the certificate type first, then upload — only Hifz Ijazah or Tajweed Ijazah certificates are accepted. The certificate is checked automatically; anything else will be rejected.</div>
+<div class="hint" style="margin:-4px 0 8px;">Select the certificate type first, then upload. It's saved for manual review — genuine Arabic/Urdu certificates are always accepted here even if the automatic check can't read them.</div>
 <div id="t_certMount"></div>
 <div class="field-error"></div>
 </div>
@@ -276,24 +276,24 @@ const tCertBox = initUploadBox(document.getElementById('t_certMount'), {
       tCert = '';
       return;
     }
-    tCertBox.setStatus('Checking certificate...', 'checking');
-    const text = await ocrExtractText(dataUrl);
-    const keywords = certType === 'Hifz Ijazah' ? ['hifz','hafiz','huffaz'] : ['tajweed','tajwid'];
-    const passed = keywords.some(k => text.includes(k));
-    if (!passed){
-      tCertBox.setStatus('⚠ Only Hifz or Tajweed Ijazah certificates are accepted.', 'error');
-      tCertBox.clear();
-      tCert = '';
-      return;
-    }
-    tCertBox.setStatus('Certificate looks valid ✓', 'success');
+    // Best-effort automatic check only — many genuine certificates are in Arabic/Urdu
+    // script and can't be read by this OCR, so a miss here never blocks the upload.
+    // The file is always saved for manual review.
+    tCertBox.setStatus('Uploaded — saved for manual review ✓', 'success');
     tCert = dataUrl;
+    const text = await ocrExtractText(dataUrl);
+    if (text){
+      const keywords = certType === 'Hifz Ijazah' ? ['hifz','hafiz','huffaz'] : ['tajweed','tajwid'];
+      const matched = keywords.some(k => text.includes(k));
+      if (!matched){
+        tCertBox.setStatus('Uploaded — could not auto-confirm the type from the text on it, so it will be manually reviewed.', 'checking');
+      }
+    }
   },
   onClear:()=>{ tCert=''; },
 });
 document.getElementById('t_certType').addEventListener('change', ()=>{
-  // Changing the certificate type after a file is already uploaded invalidates the previous check.
-  if (tCertBox.getValue()){ tCertBox.clear(); tCert=''; tCertBox.setStatus('Certificate type changed — please re-upload.', 'checking'); }
+  if (tCertBox.getValue()){ tCertBox.setStatus('Certificate type changed — it will be reviewed against the new type.', 'checking'); }
 });
 const tAudioBox = initUploadBox(document.getElementById('t_audioMount'), {
   accept:'audio/*', kind:'audio', label:'Tap to upload a short recitation sample',
