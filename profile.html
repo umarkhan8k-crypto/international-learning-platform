@@ -25,7 +25,7 @@
 <div id="bioBlock" style="margin-top:1.6rem;"></div>
 <div id="certBlock" style="margin-top:1.2rem;"></div>
 <div id="audioBlock" style="margin-top:1.2rem;"></div>
-<a href="profile-setup.html" class="btn ghost small" style="margin-top:1.6rem;">Edit profile</a>
+<a href="profile-setup.html" class="btn primary small" style="margin-top:1.6rem;">Edit profile</a>
 </div>
 </div>
 </div>
@@ -76,7 +76,7 @@ if (profile.bio){
 document.getElementById('bioBlock').innerHTML = `<div class="info-item"><div class="k">Bio</div><div class="v" style="font-weight:400;">${profile.bio}</div></div>`;
 }
 if (profile.certification){
-document.getElementById('certBlock').innerHTML = `<div class="info-item"><div class="k">Certification</div></div>
+document.getElementById('certBlock').innerHTML = `<div class="info-item"><div class="k">Certification${profile.certificationType ? ' — ' + profile.certificationType : ''}</div></div>
 <img src="${profile.certification}" style="max-width:220px;border-radius:8px;border:1px solid var(--line);margin-top:6px;" onerror="this.replaceWith('Certificate file uploaded')">`;
 }
 if (profile.audioSample){
