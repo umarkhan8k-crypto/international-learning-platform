@@ -28,17 +28,23 @@
 <div id="footer"></div>
 <script src="app.js"></script>
 <script>
-  document.getElementById('loginForm').addEventListener('submit', e=>{
+  document.getElementById('loginForm').addEventListener('submit', async e=>{
     e.preventDefault();
-    const email = document.getElementById('email').value.trim().toLowerCase();
-    const password = document.getElementById('password').value;
-    const users = DB.read('ilp_users', []);
-    const user = users.find(u=>u.email===email && u.password===password);
     const msg = document.getElementById('loginMsg');
-    if (!user){ msg.className='msg error'; msg.textContent='Email or password is incorrect.'; return; }
-    setCurrentUser(user);
-    const next = new URLSearchParams(location.search).get('next') || 'dashboard.html';
-    location.href = next;
+    msg.style.display = 'none';
+    const submitBtn = e.target.querySelector('button[type=submit]');
+    submitBtn.disabled = true;
+    try{
+      await loginUser({
+        email: document.getElementById('email').value.trim().toLowerCase(),
+        password: document.getElementById('password').value,
+      });
+      const next = new URLSearchParams(location.search).get('next') || 'dashboard.html';
+      location.href = next;
+    }catch(err){
+      msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
+      submitBtn.disabled = false;
+    }
   });
 </script>
 </body>
