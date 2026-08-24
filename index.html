@@ -27,39 +27,28 @@
 </div>
 <div class="hero-art">
 <svg viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- soft connection rings -->
   <circle cx="110" cy="104" r="92" stroke="#C79A4B" stroke-opacity="0.25" stroke-width="1"/>
   <circle cx="110" cy="104" r="70" stroke="#C79A4B" stroke-opacity="0.35" stroke-width="1"/>
-
-  <!-- laptop -->
   <g>
     <rect x="52" y="58" width="116" height="78" rx="8" fill="#1F5C54"/>
     <rect x="61" y="66" width="98" height="60" rx="3" fill="#FBF8F1"/>
     <path d="M40 140 h140 l-10 16 a8 8 0 0 1 -7 4 h-106 a8 8 0 0 1 -7 -4 z" fill="#3E7A70"/>
     <rect x="94" y="144" width="32" height="4" rx="2" fill="#E9CB8E"/>
   </g>
-
-  <!-- open book on screen -->
   <g>
     <path d="M78 118 V84 c0 -4 3 -6 7 -6 c8 0 18 3 25 8 V120 c-7 -5 -17 -8 -25 -8 c-4 0 -7 2 -7 6z" fill="#C79A4B"/>
     <path d="M142 118 V84 c0 -4 -3 -6 -7 -6 c-8 0 -18 3 -25 8 V120 c7 -5 17 -8 25 -8 c4 0 7 2 7 6z" fill="#E9CB8E"/>
     <path d="M110 86 v34" stroke="#1F5C54" stroke-width="2"/>
   </g>
-
-  <!-- crescent + star accent above screen -->
   <g transform="translate(110,40)">
     <path d="M6 -14 a14 14 0 1 0 0 28 a11 11 0 1 1 0 -28 z" fill="#C79A4B"/>
     <path d="M20 -6 l2.4 5 5.4 0.6 -4 3.8 1 5.4 -4.8 -2.6 -4.8 2.6 1 -5.4 -4 -3.8 5.4 -0.6 z" fill="#E9CB8E"/>
   </g>
-
-  <!-- headset icon (audio / live class) -->
   <g transform="translate(168,96)">
     <path d="M0 6 a16 16 0 0 1 32 0" stroke="#1F5C54" stroke-width="3" fill="none" stroke-linecap="round"/>
     <rect x="-3" y="4" width="8" height="14" rx="3" fill="#1F5C54"/>
     <rect x="27" y="4" width="8" height="14" rx="3" fill="#1F5C54"/>
   </g>
-
-  <!-- small student dot avatars connecting to class -->
   <circle cx="42" cy="164" r="9" fill="#3E7A70"/>
   <circle cx="178" cy="168" r="9" fill="#C79A4B"/>
 </svg>
@@ -148,9 +137,33 @@
 <div id="footer"></div>
 <script src="app.js"></script>
 <script>
-const stats = DB.read('ilp_users', []);
-document.getElementById('statTutors').textContent = stats.filter(u=>u.role==='tutor').length;
-document.getElementById('statStudents').textContent = stats.filter(u=>u.role==='student').length;
+(async function(){
+  try{
+    const stats = await fetchStats();
+    document.getElementById('statTutors').textContent = stats.tutors;
+    document.getElementById('statStudents').textContent = stats.students;
+  }catch(e){}
+
+  try{
+    const data = await fetchTutors({ pageSize: 3 });
+    const tutors = data.tutors || [];
+    document.getElementById('tutorPreview').innerHTML = tutors.map(t=>{
+      const name = t.user.firstName + ' ' + t.user.lastName;
+      return `
+      <div class="card tutor-card">
+      <div class="tutor-top">
+      <div class="avatar">${initials(name)}</div>
+      <div>
+      <div class="tutor-name">${name}</div>
+      <div class="tutor-meta stars">★★★★★ ${t.rating||'New'} (${t.reviewCount||0})</div>
+      </div>
+      </div>
+      <p style="font-size:.88rem;">${t.bio||''}</p>
+      <a href="tutors.html" class="btn ghost small block">View profile</a>
+      </div>`;
+    }).join('');
+  }catch(e){}
+})();
 
 const courses = [
 {tag:'Beginner', name:'Noorani Qaida', price:'From $6/class'},
@@ -164,20 +177,6 @@ document.getElementById('courseGrid').innerHTML = courses.map(c=>`
 <h3>${c.name}</h3>
 <p style="font-size:.88rem;">Structured, step-by-step live classes.</p>
 <div class="price">${c.price}</div>
-</div>`).join('');
-
-const tutors = DB.read('ilp_tutors', []).slice(0,3);
-document.getElementById('tutorPreview').innerHTML = tutors.map(t=>`
-<div class="card tutor-card">
-<div class="tutor-top">
-<div class="avatar">${initials(t.name)}</div>
-<div>
-<div class="tutor-name">${t.name}</div>
-<div class="tutor-meta stars">★★★★★ ${t.rating} (${t.reviews})</div>
-</div>
-</div>
-<p style="font-size:.88rem;">${t.bio}</p>
-<a href="tutors.html" class="btn ghost small block">View profile</a>
 </div>`).join('');
 </script>
 </body>
