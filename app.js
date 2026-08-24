@@ -1,32 +1,92 @@
-/* ===== International Learning Platform — shared app logic (localStorage-backed) ===== */
+/* ===== International Learning Platform — shared app logic (connects to real backend) ===== */
+
+const API_BASE = 'https://ilp-backend-production-77a4.up.railway.app/api';
 
 const ORNAMENT = `<svg class="ornament" viewBox="0 0 100 100"><path d="M50 2 L61 39 L98 39 L68 61 L79 98 L50 75 L21 98 L32 61 L2 39 L39 39 Z"/></svg>`;
 
-const DB = {
-  read(key, fallback){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }catch(e){ return fallback; } },
-  write(key, val){ localStorage.setItem(key, JSON.stringify(val)); },
-};
+/* ===================================================================
+   API layer — talks to the real backend instead of localStorage
+   =================================================================== */
+function getToken(){ return localStorage.getItem('ilp_token'); }
+function setToken(t){ localStorage.setItem('ilp_token', t); }
+function clearToken(){ localStorage.removeItem('ilp_token'); localStorage.removeItem('ilp_user_cache'); }
+function cacheUser(user){ localStorage.setItem('ilp_user_cache', JSON.stringify(user)); }
 
-/* ---------- seed tutors (first run only) ---------- */
-function seedTutors(){
-  if (DB.read('ilp_tutors', null)) return;
-  const tutors = [
-    { id:'t1', name:'Ustadh Ahmad Rahman', gender:'Male', subjects:['Hifz','Tajweed'], languages:['English','Urdu'], country:'Egypt', rating:5.0, reviews:142, price:8, exp:'7 years', bio:'Al-Azhar certified hafiz specializing in Hifz for kids and adults.' },
-    { id:'t2', name:'Ustadha Maryam Siddiqui', gender:'Female', subjects:['Qaida','Recitation'], languages:['English','Urdu'], country:'Pakistan', rating:4.9, reviews:98, price:7, exp:'5 years', bio:'Patient, kid-friendly teacher for Noorani Qaida and beginner recitation.' },
-    { id:'t3', name:'Ustadh Bilal Hassan', gender:'Male', subjects:['Recitation','Arabic'], languages:['English','Arabic'], country:'Jordan', rating:4.8, reviews:76, price:9, exp:'6 years', bio:'Native Arabic speaker teaching Quranic Arabic grammar and reading.' },
-    { id:'t4', name:'Ustadha Aisha Noor', gender:'Female', subjects:['Hifz','Tajweed'], languages:['English'], country:'UK', rating:5.0, reviews:210, price:11, exp:'9 years', bio:'Ijazah-holder guiding full Quran memorization journeys for adults.' },
-    { id:'t5', name:'Ustadh Younus Khan', gender:'Male', subjects:['Tajweed','Recitation'], languages:['English','Urdu'], country:'Pakistan', rating:4.7, reviews:64, price:6, exp:'4 years', bio:'Focused, structured Tajweed correction classes for all levels.' },
-    { id:'t6', name:'Ustadha Sara Idris', gender:'Female', subjects:['Arabic','Qaida'], languages:['English','Arabic'], country:'Morocco', rating:4.9, reviews:120, price:8, exp:'6 years', bio:'Makes Arabic grammar simple with a conversational teaching style.' },
-  ];
-  DB.write('ilp_tutors', tutors);
+async function apiRequest(path, opts){
+  opts = opts || {};
+  const method = opts.method || 'GET';
+  const headers = {};
+  const token = getToken();
+  if (token) headers['Authorization'] = 'Bearer ' + token;
+  let fetchBody;
+  if (opts.isForm){
+    fetchBody = opts.body;
+  } else if (opts.body){
+    headers['Content-Type'] = 'application/json';
+    fetchBody = JSON.stringify(opts.body);
+  }
+  const res = await fetch(API_BASE + path, { method, headers, body: fetchBody });
+  let data = null;
+  try{ data = await res.json(); }catch(e){}
+  if (!res.ok){
+    const msg = (data && (data.error || (data.errors && data.errors[0] && data.errors[0].msg))) || 'Something went wrong.';
+    throw new Error(msg);
+  }
+  return data;
 }
-seedTutors();
 
-function currentUser(){ return DB.read('ilp_current_user', null); }
-function setCurrentUser(u){ DB.write('ilp_current_user', u); }
-function logout(){ localStorage.removeItem('ilp_current_user'); location.href = 'index.html'; }
+async function registerUser(payload){
+  const data = await apiRequest('/auth/register', { method:'POST', body: payload });
+  setToken(data.token);
+  cacheUser(data.user);
+  return data.user;
+}
+async function loginUser(payload){
+  const data = await apiRequest('/auth/login', { method:'POST', body: payload });
+  setToken(data.token);
+  cacheUser(data.user);
+  return data.user;
+}
+async function refreshCurrentUser(){
+  if (!getToken()) return null;
+  try{
+    const data = await apiRequest('/auth/me');
+    cacheUser(data.user);
+    return data.user;
+  }catch(e){
+    clearToken();
+    return null;
+  }
+}
+function currentUser(){
+  const raw = localStorage.getItem('ilp_user_cache');
+  return raw ? JSON.parse(raw) : null;
+}
+function setCurrentUser(u){ cacheUser(u); }
+function logout(){ clearToken(); location.href = 'index.html'; }
+
+async function fetchTutors(params){
+  const qs = new URLSearchParams(params || {}).toString();
+  return apiRequest('/tutors' + (qs ? '?' + qs : ''));
+}
+async function fetchMyProfile(){ return apiRequest('/profile/me'); }
+async function saveProfileApi(data){ return apiRequest('/profile/me', { method:'PUT', body: data }); }
+async function uploadFile(file, kind){
+  const form = new FormData();
+  form.append('file', file);
+  return apiRequest('/upload?kind=' + kind, { method:'POST', body: form, isForm: true });
+}
+async function createTrialRequestApi(payload){
+  return apiRequest('/trial-requests', { method:'POST', body: payload });
+}
+async function fetchMyRequests(){ return apiRequest('/trial-requests/mine'); }
+async function updateTrialRequestApi(id, status){
+  return apiRequest('/trial-requests/' + id, { method:'PATCH', body: { status } });
+}
+async function fetchStats(){ return apiRequest('/stats'); }
+
 function initials(name){
-  return name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return (name||'').split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 }
 
 /* ---------- nav + footer ---------- */
@@ -58,7 +118,6 @@ function renderNav(active){
       <button class="nav-toggle" id="navToggle" aria-label="Menu">☰</button>
     </div>`;
 
-  // Desktop shows cta inline next to links; mobile shows inside the sliding panel.
   const mq = window.matchMedia('(min-width:861px)');
   function layoutCta(){
     const panel = document.getElementById('navLinks');
@@ -122,6 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderNav(document.body.dataset.page || '');
   renderFooter();
 });
+
 const COUNTRIES = [
 {n:'Afghanistan',d:"93",f:"🇦🇫"},
 {n:'Albania',d:"355",f:"🇦🇱"},
@@ -320,9 +380,7 @@ const COUNTRIES = [
 {n:'Zambia',d:"260",f:"🇿🇲"},
 {n:'Zimbabwe',d:"263",f:"🇿🇼"}
 ];
-/* ===================================================================
-   Languages list
-   =================================================================== */
+
 const LANGUAGES = [
   'English','Urdu','Arabic','French','Spanish','Turkish','Bengali','Hindi',
   'Indonesian','Malay','Pashto','Persian (Farsi)','Somali','Swahili','Hausa',
@@ -330,23 +388,6 @@ const LANGUAGES = [
   'Italian','Dutch','Rohingya','Amharic','Tamil','Bosnian','Albanian'
 ];
 
-/* ===================================================================
-   Profile storage
-   =================================================================== */
-function getProfile(email){
-  const profiles = DB.read('ilp_profiles', {});
-  return profiles[email] || null;
-}
-function saveProfile(email, data){
-  const profiles = DB.read('ilp_profiles', {});
-  profiles[email] = { ...(profiles[email] || {}), ...data };
-  DB.write('ilp_profiles', profiles);
-  return profiles[email];
-}
-
-/* ===================================================================
-   File -> data URL helper
-   =================================================================== */
 function readFileAsDataURL(file){
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -356,9 +397,6 @@ function readFileAsDataURL(file){
   });
 }
 
-/* ===================================================================
-   Generic outside-click-closes helper
-   =================================================================== */
 function closeOnOutsideClick(panelEl, toggleEl, closeFn){
   function handler(e){
     if (!panelEl.contains(e.target) && !toggleEl.contains(e.target)){
@@ -369,10 +407,6 @@ function closeOnOutsideClick(panelEl, toggleEl, closeFn){
   document.addEventListener('click', handler, true);
 }
 
-/* ===================================================================
-   Phone picker — flag + country code + number, with a searchable
-   A-Z country dropdown.
-   =================================================================== */
 function initPhonePicker(mount, opts){
   opts = opts || {};
   let country = opts.defaultCountry
@@ -459,10 +493,6 @@ function initPhonePicker(mount, opts){
   };
 }
 
-/* ===================================================================
-   Country select — single value, searchable A-Z dropdown with flags.
-   Used for the plain "Country" field.
-   =================================================================== */
 function initCountrySelect(mount, opts){
   opts = opts || {};
   let selected = opts.defaultValue
@@ -541,10 +571,6 @@ function initCountrySelect(mount, opts){
   };
 }
 
-/* ===================================================================
-   Chip picker — free-text chips with autocomplete suggestions
-   (used for "Languages you speak")
-   =================================================================== */
 function initChipPicker(mount, opts){
   opts = opts || {};
   const options = opts.options || [];
@@ -614,11 +640,6 @@ function initChipPicker(mount, opts){
   };
 }
 
-/* ===================================================================
-   Subject picker — closed checkbox dropdown; nothing shows until
-   the box itself is clicked. Selected subjects render as chips
-   in the closed box.
-   =================================================================== */
 function initSubjectPicker(mount, opts){
   opts = opts || {};
   const options = opts.options || [];
@@ -675,14 +696,8 @@ function initSubjectPicker(mount, opts){
   };
 }
 
-/* ===================================================================
-   Upload box helper — swaps the "tap to upload" prompt for a
-   preview once a file is chosen (image thumbnail, or a filled
-   file badge for non-image files). Works for photo / certificate /
-   audio uploads alike.
-   =================================================================== */
 function initUploadBox(mount, opts){
-  opts = opts || {}; // { accept, kind: 'image'|'file'|'audio', label, previewShape:'circle'|'rect' }
+  opts = opts || {};
   const kind = opts.kind || 'file';
   mount.classList.add('upload-slot');
   mount.innerHTML = `
@@ -703,6 +718,7 @@ function initUploadBox(mount, opts){
   const statusEl = mount.querySelector('.upload-status');
   let dataUrl = '';
   let fileName = '';
+  let rawFile = null;
 
   function showPreview(){
     promptLabel.style.display = 'none';
@@ -716,7 +732,7 @@ function initUploadBox(mount, opts){
     }
   }
   function clear(){
-    dataUrl = ''; fileName = '';
+    dataUrl = ''; fileName = ''; rawFile = null;
     input.value = '';
     promptLabel.style.display = 'flex';
     preview.style.display = 'none';
@@ -738,6 +754,7 @@ function initUploadBox(mount, opts){
     const f = e.target.files[0];
     if (!f) return;
     fileName = f.name;
+    rawFile = f;
     dataUrl = await readFileAsDataURL(f);
     showPreview();
     setStatus('');
@@ -746,17 +763,13 @@ function initUploadBox(mount, opts){
 
   return {
     getValue(){ return dataUrl; },
+    getFile(){ return rawFile; },
     getFileName(){ return fileName; },
     clear,
     setStatus,
   };
 }
 
-/* ===================================================================
-   OCR text extraction — used to sanity-check uploaded certificates.
-   Requires Tesseract.js to be included on the page (window.Tesseract).
-   This is a best-effort keyword check, not a guarantee of authenticity.
-   =================================================================== */
 async function ocrExtractText(dataUrl){
   if (typeof Tesseract === 'undefined') return '';
   try{
@@ -768,9 +781,6 @@ async function ocrExtractText(dataUrl){
   }
 }
 
-/* ===================================================================
-   Read an audio file's duration (in seconds) before accepting it.
-   =================================================================== */
 function getAudioDuration(file){
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -786,9 +796,6 @@ function getAudioDuration(file){
   });
 }
 
-/* ===================================================================
-   Side navigation for account pages (profile / dashboard)
-   =================================================================== */
 function renderSideNav(mountId, active){
   const el = document.getElementById(mountId);
   if (!el) return;
