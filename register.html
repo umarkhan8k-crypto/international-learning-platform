@@ -24,7 +24,7 @@
 <div class="field"><label>Last name</label><input type="text" id="lastName" required></div>
 </div>
 <div class="field"><label>Email</label><input type="email" id="email" required></div>
-<div class="field"><label>Password</label><input type="password" id="password" required minlength="6"></div>
+<div class="field"><label>Password</label><input type="password" id="password" required minlength="8"></div>
 <button type="submit" class="btn primary block">Create account</button>
 </form>
 <p class="form-foot">Already have an account? <a href="login.html">Log in</a></p>
@@ -34,37 +34,37 @@
 <div id="footer"></div>
 <script src="app.js"></script>
 <script>
-let role = 'student';
+let role = 'STUDENT';
 document.getElementById('roleStudent').addEventListener('click', ()=>{
-  role='student';
+  role='STUDENT';
   document.getElementById('roleStudent').classList.add('active');
   document.getElementById('roleTutor').classList.remove('active');
 });
 document.getElementById('roleTutor').addEventListener('click', ()=>{
-  role='tutor';
+  role='TUTOR';
   document.getElementById('roleTutor').classList.add('active');
   document.getElementById('roleStudent').classList.remove('active');
 });
-document.getElementById('registerForm').addEventListener('submit', e=>{
+document.getElementById('registerForm').addEventListener('submit', async e=>{
   e.preventDefault();
   const msg = document.getElementById('regMsg');
-  const email = document.getElementById('email').value.trim().toLowerCase();
-  const users = DB.read('ilp_users', []);
-  if (users.find(u=>u.email===email)){
-    msg.className='msg error'; msg.textContent='This email is already registered. Please log in.'; return;
+  msg.style.display = 'none';
+  const submitBtn = e.target.querySelector('button[type=submit]');
+  submitBtn.disabled = true;
+  try{
+    await registerUser({
+      firstName: document.getElementById('firstName').value.trim(),
+      lastName: document.getElementById('lastName').value.trim(),
+      email: document.getElementById('email').value.trim().toLowerCase(),
+      password: document.getElementById('password').value,
+      role,
+    });
+    msg.className='msg success'; msg.textContent='Account created! Let\'s set up your profile...'; msg.style.display='block';
+    setTimeout(()=> location.href='profile-setup.html', 700);
+  }catch(err){
+    msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
+    submitBtn.disabled = false;
   }
-  const user = {
-    firstName: document.getElementById('firstName').value.trim(),
-    lastName: document.getElementById('lastName').value.trim(),
-    email, password: document.getElementById('password').value,
-    role,
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  DB.write('ilp_users', users);
-  setCurrentUser(user);
-  msg.className='msg success'; msg.textContent='Account created! Let\'s set up your profile...';
-  setTimeout(()=> location.href='profile-setup.html', 700);
 });
 </script>
 </body>
