@@ -247,7 +247,7 @@ const first = document.querySelector('.field.invalid');
 if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
 }
 
-if (user.role === 'tutor'){
+if (user.role === 'TUTOR'){
 document.getElementById('formTitle').textContent = 'Set up your tutor profile';
 document.getElementById('formSub').textContent = 'Complete this so students can find and book you. Every field is required except your certificate.';
 document.getElementById('tutorForm').style.display = 'block';
@@ -276,9 +276,6 @@ const tCertBox = initUploadBox(document.getElementById('t_certMount'), {
       tCert = '';
       return;
     }
-    // Best-effort automatic check only — many genuine certificates are in Arabic/Urdu
-    // script and can't be read by this OCR, so a miss here never blocks the upload.
-    // The file is always saved for manual review.
     tCertBox.setStatus('Uploaded — saved for manual review ✓', 'success');
     tCert = dataUrl;
     const text = await ocrExtractText(dataUrl);
@@ -376,7 +373,7 @@ location.href = 'profile.html';
 });
 }
 
-if (user.role === 'student'){
+if (user.role === 'STUDENT'){
 document.getElementById('formTitle').textContent = 'Set up your student profile';
 document.getElementById('formSub').textContent = 'Tell tutors a bit about yourself so they can help you better. Every field is required.';
 document.getElementById('studentForm').style.display = 'block';
@@ -441,9 +438,6 @@ location.href = 'profile.html';
 }
 
 function updateUserName(firstName, lastName){
-const users = DB.read('ilp_users', []);
-const idx = users.findIndex(u=>u.email===user.email);
-if (idx>-1){ users[idx].firstName = firstName; users[idx].lastName = lastName; DB.write('ilp_users', users); }
 user.firstName = firstName; user.lastName = lastName;
 setCurrentUser(user);
 }
