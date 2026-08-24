@@ -33,6 +33,7 @@
     </div>
     <div class="grid-3" id="tutorGrid"></div>
     <p id="emptyState" style="display:none;text-align:center;color:var(--ink-2);padding:40px 0;">No tutors match your filters yet — try clearing a filter.</p>
+    <p id="loadingState" style="text-align:center;color:var(--ink-2);padding:40px 0;">Loading tutors...</p>
   </div>
 </section>
 
@@ -43,7 +44,6 @@
     <p class="form-sub" id="modalTutorMeta" style="margin-bottom:1.2em;"></p>
     <div id="modalMsg" class="msg"></div>
     <form id="trialForm">
-      <div class="field"><label>Your name</label><input type="text" id="trialName" required></div>
       <div class="field"><label>Preferred day &amp; time</label><input type="text" id="trialTime" placeholder="e.g. Weekdays, evening (GMT+5)" required></div>
       <button class="btn primary block" type="submit">Send trial request</button>
     </form>
@@ -55,51 +55,63 @@
 <script>
   const grid = document.getElementById('tutorGrid');
   const empty = document.getElementById('emptyState');
-  let ALL_TUTORS = DB.read('ilp_tutors', []);
+  const loading = document.getElementById('loadingState');
   let activeTutor = null;
 
   const params = new URLSearchParams(location.search);
   if (params.get('subject')) document.getElementById('subjectFilter').value = params.get('subject');
 
   function starRow(r){
-    const full = Math.round(r);
+    const rating = Number(r) || 0;
+    const full = Math.round(rating);
     return '★'.repeat(full) + '☆'.repeat(5-full);
   }
 
-  function render(){
-    const q = document.getElementById('searchInput').value.trim().toLowerCase();
-    const subj = document.getElementById('subjectFilter').value;
-    const gen = document.getElementById('genderFilter').value;
+  async function render(){
+    loading.style.display = 'block';
+    empty.style.display = 'none';
+    grid.innerHTML = '';
+    try{
+      const q = {};
+      const search = document.getElementById('searchInput').value.trim();
+      const subj = document.getElementById('subjectFilter').value;
+      const gen = document.getElementById('genderFilter').value;
+      if (search) q.search = search;
+      if (subj) q.subject = subj;
+      if (gen) q.gender = gen;
 
-    const filtered = ALL_TUTORS.filter(t=>{
-      const hay = (t.name+' '+t.subjects.join(' ')+' '+t.languages.join(' ')).toLowerCase();
-      if (q && !hay.includes(q)) return false;
-      if (subj && !t.subjects.includes(subj)) return false;
-      if (gen && t.gender !== gen) return false;
-      return true;
-    });
-
-    empty.style.display = filtered.length ? 'none' : 'block';
-    grid.innerHTML = filtered.map(t=>`
-      <div class="card tutor-card">
-        <div class="tutor-top">
-          <div class="avatar">${initials(t.name)}</div>
-          <div>
-            <div class="tutor-name">${t.name}</div>
-            <div class="tutor-meta">${t.country} · ${t.exp}</div>
+      const data = await fetchTutors(q);
+      const tutors = data.tutors || [];
+      loading.style.display = 'none';
+      empty.style.display = tutors.length ? 'none' : 'block';
+      grid.innerHTML = tutors.map(t=>{
+        const name = t.user.firstName + ' ' + t.user.lastName;
+        return `
+        <div class="card tutor-card">
+          <div class="tutor-top">
+            <div class="avatar">${initials(name)}</div>
+            <div>
+              <div class="tutor-name">${name}</div>
+              <div class="tutor-meta">${t.country||''} · ${t.experience||''}</div>
+            </div>
           </div>
-        </div>
-        <div class="stars">${starRow(t.rating)} <span style="color:var(--ink-2);font-weight:500;">${t.rating} (${t.reviews})</span></div>
-        <p style="font-size:.87rem;">${t.bio}</p>
-        <div class="pill-row">
-          ${t.subjects.map(s=>`<span class="pill">${s}</span>`).join('')}
-          ${t.languages.map(l=>`<span class="pill">${l}</span>`).join('')}
-        </div>
-        <div class="tutor-bottom">
-          <div class="tutor-price">$${t.price}<small> / class</small></div>
-          <button class="btn gold small" onclick="openModal('${t.id}')">Book trial</button>
-        </div>
-      </div>`).join('');
+          <div class="stars">${starRow(t.rating)} <span style="color:var(--ink-2);font-weight:500;">${t.rating||'New'} (${t.reviewCount||0})</span></div>
+          <p style="font-size:.87rem;">${t.bio||''}</p>
+          <div class="pill-row">
+            ${(t.subjects||[]).map(s=>`<span class="pill">${s}</span>`).join('')}
+            ${(t.languages||[]).map(l=>`<span class="pill">${l}</span>`).join('')}
+          </div>
+          <div class="tutor-bottom">
+            <div class="tutor-price">$${t.price||'—'}<small> / class</small></div>
+            <button class="btn gold small" onclick="openModal('${t.userId}')">Book trial</button>
+          </div>
+        </div>`;
+      }).join('');
+      window.__tutorCache = tutors;
+    }catch(err){
+      loading.style.display = 'none';
+      grid.innerHTML = `<p style="color:var(--rose);text-align:center;">Could not load tutors: ${err.message}</p>`;
+    }
   }
 
   ['searchInput','subjectFilter','genderFilter'].forEach(id=>{
@@ -107,38 +119,40 @@
   });
   render();
 
-  function openModal(id){
+  function openModal(userId){
     const user = currentUser();
     if (!user){ location.href = 'login.html?next=tutors.html'; return; }
-    activeTutor = ALL_TUTORS.find(t=>t.id===id);
-    document.getElementById('modalTutorName').textContent = 'Book a trial with ' + activeTutor.name;
-    document.getElementById('modalTutorMeta').textContent = activeTutor.subjects.join(', ') + ' · $' + activeTutor.price + '/class';
-    document.getElementById('trialName').value = user.firstName + ' ' + user.lastName;
+    activeTutor = (window.__tutorCache||[]).find(t=>t.userId===userId);
+    if (!activeTutor) return;
+    const name = activeTutor.user.firstName + ' ' + activeTutor.user.lastName;
+    document.getElementById('modalTutorName').textContent = 'Book a trial with ' + name;
+    document.getElementById('modalTutorMeta').textContent = (activeTutor.subjects||[]).join(', ') + ' · $' + activeTutor.price + '/class';
     document.getElementById('modalMsg').style.display = 'none';
     document.getElementById('trialModal').classList.add('open');
   }
   function closeModal(){ document.getElementById('trialModal').classList.remove('open'); }
 
-  document.getElementById('trialForm').addEventListener('submit', e=>{
+  document.getElementById('trialForm').addEventListener('submit', async e=>{
     e.preventDefault();
-    const user = currentUser();
-    const requests = DB.read('ilp_requests', []);
-    requests.push({
-      id: 'r'+Date.now(),
-      tutorId: activeTutor.id,
-      tutorName: activeTutor.name,
-      studentId: user.email,
-      studentName: document.getElementById('trialName').value,
-      preferredTime: document.getElementById('trialTime').value,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    });
-    DB.write('ilp_requests', requests);
     const msg = document.getElementById('modalMsg');
-    msg.className = 'msg success';
-    msg.textContent = 'Trial request sent! Track its status from your dashboard.';
-    document.getElementById('trialForm').reset();
-    setTimeout(closeModal, 1600);
+    const submitBtn = e.target.querySelector('button[type=submit]');
+    submitBtn.disabled = true;
+    try{
+      await createTrialRequestApi({
+        tutorId: activeTutor.userId,
+        preferredTime: document.getElementById('trialTime').value,
+      });
+      msg.className = 'msg success';
+      msg.textContent = 'Trial request sent! Track its status from your dashboard.';
+      msg.style.display = 'block';
+      document.getElementById('trialForm').reset();
+      setTimeout(closeModal, 1600);
+    }catch(err){
+      msg.className = 'msg error';
+      msg.textContent = err.message;
+      msg.style.display = 'block';
+    }
+    submitBtn.disabled = false;
   });
 </script>
 </body>
