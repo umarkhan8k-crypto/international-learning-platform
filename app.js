@@ -273,12 +273,24 @@ function initPhonePicker(mount){
 
   const items = COUNTRIES.map(c => ({ id: c.dial, label: `${flagEmoji(c.code)} ${c.dial}` }));
   const dd = buildSearchDropdown(codeMount, { items, single: true, placeholder: 'Code' });
+  const allDials = [...new Set(COUNTRIES.map(c=>c.dial))].sort((a,b)=>b.length-a.length);
 
   return {
     getFullNumber: () => {
       const code = dd.getValue();
       const num = numberInput.value.trim();
       return num && code ? `${code} ${num}` : (num || '');
+    },
+    setFullNumber: (full) => {
+      if (!full) return;
+      const v = full.trim();
+      const matchCode = allDials.find(d => v.startsWith(d + ' ') || v === d);
+      if (matchCode){
+        dd.setValue(matchCode);
+        numberInput.value = v.slice(matchCode.length).trim();
+      } else {
+        numberInput.value = v;
+      }
     },
   };
 }
@@ -349,20 +361,24 @@ function initUploadBox(mount, opts={}){
     status.style.color = type==='error' ? 'var(--rose,#c0392b)' : type==='success' ? 'var(--gold,#2e7d32)' : 'var(--ink-2)';
   }
 
-  input.addEventListener('change', async () => {
-    const file = input.files[0];
-    if (!file) return;
+  function showPreview(url){
     preview.innerHTML = '';
     if (opts.kind === 'image'){
       const img = document.createElement('img');
-      img.src = URL.createObjectURL(file);
+      img.src = url;
       img.style.cssText = `max-width:120px;border-radius:${opts.previewShape==='circle'?'50%':'8px'};display:block;`;
       preview.appendChild(img);
     } else if (opts.kind === 'audio'){
       const audio = document.createElement('audio');
-      audio.controls = true; audio.src = URL.createObjectURL(file);
+      audio.controls = true; audio.src = url;
       preview.appendChild(audio);
     }
+  }
+
+  input.addEventListener('change', async () => {
+    const file = input.files[0];
+    if (!file) return;
+    showPreview(URL.createObjectURL(file));
     setStatus('Uploading...', 'checking');
     try{
       const url = await apiUpload(file, opts.kind || 'image');
@@ -379,6 +395,12 @@ function initUploadBox(mount, opts={}){
     getValue: () => currentUrl,
     setStatus,
     clear: () => { input.value = ''; preview.innerHTML = ''; currentUrl = ''; setStatus(''); },
+    setExisting: (url) => {
+      if (!url) return;
+      currentUrl = url;
+      showPreview(url);
+      setStatus('Current file — choose a new one only if you want to replace it.', 'success');
+    },
   };
 }
 
