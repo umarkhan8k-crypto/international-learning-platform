@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Find Tutors — International Learning Platform</title>
 <link rel="stylesheet" href="style.css">
+<style>
+  .lang-row{ font-size:.78rem; color:var(--ink-2,#888); margin-top:6px; }
+</style>
 </head>
 <body data-page="Find Tutors">
 <div id="nav"></div>
@@ -105,8 +108,8 @@
           <p style="font-size:.87rem;">${t.bio||''}</p>
           <div class="pill-row">
             ${(t.subjects||[]).map(s=>`<span class="pill">${s}</span>`).join('')}
-            ${(t.languages||[]).map(l=>`<span class="pill">${l}</span>`).join('')}
           </div>
+          ${(t.languages||[]).length ? `<div class="lang-row">${(t.languages||[]).join(' · ')}</div>` : ''}
           <div class="tutor-bottom">
             <div class="tutor-price">$${t.price||'—'}<small> / class</small></div>
             <button class="btn gold small" onclick="openModal('${t.userId}')">Book trial</button>
