@@ -67,6 +67,12 @@
     return '★'.repeat(full) + '☆'.repeat(5-full);
   }
 
+  function avatarHtml(name, pictureUrl){
+    return pictureUrl
+      ? `<img src="${pictureUrl}" class="avatar" style="object-fit:cover;">`
+      : `<div class="avatar">${initials(name)}</div>`;
+  }
+
   async function render(){
     loading.style.display = 'block';
     empty.style.display = 'none';
@@ -89,7 +95,7 @@
         return `
         <div class="card tutor-card">
           <div class="tutor-top">
-            <div class="avatar">${initials(name)}</div>
+            ${avatarHtml(name, t.pictureUrl)}
             <div>
               <div class="tutor-name">${name}</div>
               <div class="tutor-meta">${t.country||''} · ${t.experience||''}</div>
