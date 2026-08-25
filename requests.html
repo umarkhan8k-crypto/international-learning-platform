@@ -28,7 +28,7 @@
   }
 
   function statusBadge(status){
-    const map = { PENDING:'#b8860b', ACCEPTED:'#1e7d43', DECLINED:'#c0392b' };
+    const map = { PENDING:'#b8860b', ACCEPTED:'#1e7d43', DECLINED:'#c0392b', COMPLETED:'#2e5aa8' };
     return `<span style="color:${map[status]||'#888'};font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;">${status}</span>`;
   }
 
@@ -93,6 +93,10 @@
            <button class="btn primary small" data-accept="${r.id}">Accept</button>
            <button class="btn ghost small" data-decline="${r.id}">Decline</button>
          </div>`
+      : (isTutor && r.status === 'ACCEPTED')
+      ? `<div style="margin-top:10px;">
+           <button class="btn primary small" data-complete="${r.id}">Mark class as completed</button>
+         </div>`
       : '';
 
     return `
@@ -154,6 +158,14 @@
         btn.addEventListener('click', async () => {
           btn.disabled = true;
           try{ await updateTrialRequestStatus(btn.dataset.decline, 'DECLINED'); load(); }
+          catch(err){ alert(err.message); btn.disabled = false; }
+        });
+      });
+      wrap.querySelectorAll('[data-complete]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Mark this class as completed? This will add +1 to your total classes taught.')) return;
+          btn.disabled = true;
+          try{ await updateTrialRequestStatus(btn.dataset.complete, 'COMPLETED'); load(); }
           catch(err){ alert(err.message); btn.disabled = false; }
         });
       });
