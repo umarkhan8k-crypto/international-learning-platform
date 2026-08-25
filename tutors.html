@@ -105,6 +105,7 @@
             </div>
           </div>
           <div class="stars">${starRow(t.rating)} <span style="color:var(--ink-2);font-weight:500;">${t.rating||'New'} (${t.reviewCount||0})</span></div>
+          <div style="font-size:.78rem;color:var(--ink-2,#888);margin-top:2px;">${t.totalClasses||0} classes taught</div>
           <p style="font-size:.87rem;">${t.bio||''}</p>
           <div class="pill-row">
             ${(t.subjects||[]).map(s=>`<span class="pill">${s}</span>`).join('')}
