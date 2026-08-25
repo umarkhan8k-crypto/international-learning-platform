@@ -42,12 +42,14 @@
     return /\.(png|jpe?g|gif|webp|svg)$/i.test(url || '');
   }
 
-  function doLogout(){
-    try{
-      if (typeof logout === 'function'){ logout(); return; }
-    }catch(e){}
-    ['user','token','authToken','session'].forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
-    location.href = 'login.html';
+  function sidebar(active){
+    return `
+      <aside class="profile-sidebar">
+        <a href="dashboard.html" class="side-link ${active==='dashboard'?'active':''}">Dashboard</a>
+        <a href="profile.html" class="side-link ${active==='profile'?'active':''}">Profile</a>
+        <a href="requests.html" class="side-link ${active==='requests'?'active':''}">Requests</a>
+        <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
+      </aside>`;
   }
 
   async function load(){
@@ -69,11 +71,7 @@
       if (!profile){
         wrap.innerHTML = `
           <div class="profile-layout">
-            <aside class="profile-sidebar">
-              <a href="dashboard.html" class="side-link">Dashboard</a>
-              <a href="profile.html" class="side-link active">Profile</a>
-              <a href="#" class="side-link" onclick="doLogout();return false;">Log out</a>
-            </aside>
+            ${sidebar('profile')}
             <div class="profile-card">
               <p style="color:var(--ink-2);">You haven't completed your profile yet.</p>
               <a href="profile-setup.html" class="btn primary small">Complete your profile</a>
@@ -138,11 +136,7 @@
 
       wrap.innerHTML = `
         <div class="profile-layout">
-          <aside class="profile-sidebar">
-            <a href="dashboard.html" class="side-link">Dashboard</a>
-            <a href="profile.html" class="side-link active">Profile</a>
-            <a href="#" class="side-link" onclick="doLogout();return false;">Log out</a>
-          </aside>
+          ${sidebar('profile')}
 
           <div class="profile-card">
             <div class="profile-header">
