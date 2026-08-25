@@ -39,7 +39,7 @@
         email: document.getElementById('email').value.trim().toLowerCase(),
         password: document.getElementById('password').value,
       });
-      const next = new URLSearchParams(location.search).get('next') || 'dashboard.html';
+      const next = new URLSearchParams(location.search).get('next') || 'profile.html';
       location.href = next;
     }catch(err){
       msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
