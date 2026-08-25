@@ -237,7 +237,8 @@ function renderNav(active){
     `<a href="${href}" class="${active===label?'active':''}">${label}</a>`).join('');
 
   const cta = user
-    ? `<a class="nav-user" href="dashboard.html">${initials(user.firstName+' '+user.lastName)} · Dashboard</a>
+    ? `<a class="nav-user" href="dashboard.html">${initials(user.firstName+' '+user.lastName)}</a>
+       <a class="btn ghost small" href="dashboard.html">Profile</a>
        <button class="btn ghost small" onclick="logout()">Log out</button>`
     : `<a class="btn ghost small" href="login.html">Login</a>
        <a class="btn primary small" href="register.html">Register</a>`;
