@@ -224,7 +224,7 @@ function initials(name){
   return name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 }
 
-/* ---------- tutors / trial requests / profile ---------- */
+/* ---------- tutors / trial requests / profile / stats ---------- */
 async function fetchTutors(query = {}){
   const params = new URLSearchParams(query).toString();
   return apiRequest('/tutors' + (params ? '?' + params : ''));
@@ -244,6 +244,10 @@ async function updateTrialRequestStatus(id, status){
 
 async function getMyProfile(){
   return apiRequest('/profile/me');
+}
+
+async function fetchStats(){
+  return apiRequest('/stats');
 }
 
 async function saveProfile(_email, data){
