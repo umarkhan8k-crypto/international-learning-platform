@@ -9,7 +9,7 @@
 <body data-page="Profile">
 <div id="nav"></div>
 
-<section style="padding:48px 0;">
+<section style="padding:40px 0;">
   <div class="container">
     <div id="profileWrap"><p style="color:var(--ink-2);">Loading your profile...</p></div>
   </div>
@@ -21,16 +21,33 @@
   const user = currentUser();
   if (!user){ location.href = 'login.html?next=profile.html'; }
 
-  function row(label, value){
+  function field(label, value){
     if (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)) return '';
     const display = Array.isArray(value) ? value.join(', ') : value;
-    return `<div class="profile-row"><span class="profile-label">${label}</span><span class="profile-value">${display}</span></div>`;
+    return `<div class="field"><span class="field-label">${label}</span><span class="field-value">${display}</span></div>`;
+  }
+
+  function fieldFull(label, value){
+    if (value === undefined || value === null || value === '') return '';
+    return `<div class="field field-full"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
   }
 
   function statusPill(status){
     const map = { NONE:'No certificate submitted', PENDING:'Pending review', APPROVED:'Approved ✓', REJECTED:'Rejected — please re-upload a genuine certificate' };
-    const color = status==='APPROVED' ? 'var(--gold,#2e7d32)' : status==='REJECTED' ? 'var(--rose,#c0392b)' : 'var(--ink-2)';
+    const color = status==='APPROVED' ? '#2e7d32' : status==='REJECTED' ? '#c0392b' : 'var(--ink-2)';
     return `<span style="color:${color};font-weight:600;">${map[status] || status}</span>`;
+  }
+
+  function isImageUrl(url){
+    return /\.(png|jpe?g|gif|webp|svg)$/i.test(url || '');
+  }
+
+  function doLogout(){
+    try{
+      if (typeof logout === 'function'){ logout(); return; }
+    }catch(e){}
+    ['user','token','authToken','session'].forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+    location.href = 'login.html';
   }
 
   async function load(){
@@ -41,75 +58,158 @@
       const name = user.firstName + ' ' + user.lastName;
 
       let picHtml = profile && profile.pictureUrl
-        ? `<img src="${profile.pictureUrl}" style="width:96px;height:96px;border-radius:50%;object-fit:cover;">`
+        ? `<img src="${profile.pictureUrl}" class="profile-avatar-img">`
         : `<div class="avatar avatar-lg">${initials(name)}</div>`;
 
-      let body = '';
+      let fieldsHtml = '';
+      let certHtml = '';
+      let audioHtml = '';
+      let bioHtml = '';
+
       if (!profile){
-        body = `<p style="color:var(--ink-2);">You haven't completed your profile yet.</p>
-                <a href="profile-setup.html" class="btn primary small">Complete your profile</a>`;
-      } else if (isTutor){
-        body = `
-          <div class="profile-card">
-            ${row('Gender', profile.gender)}
-            ${row('Country', profile.country)}
-            ${row('Phone', profile.phone)}
-            ${row('WhatsApp', profile.whatsapp)}
-            ${row('Subjects', profile.subjects)}
-            ${row('Teaches', profile.ageGroupsTaught)}
-            ${row('Platform', profile.platform)}
-            ${row('Availability', profile.availability)}
-            ${row('Experience', profile.experience)}
-            ${row('Qualification', profile.qualification)}
-            ${row('Bio', profile.bio)}
-            ${row('Price', profile.price ? '$' + profile.price + ' / class' : '')}
-            ${row('Languages', profile.languages)}
-            <div class="profile-row"><span class="profile-label">Listed publicly</span><span class="profile-value">${profile.isListed ? 'Yes — students can find and book you ✓' : 'Not yet — complete every required field to appear in search'}</span></div>
-            ${profile.certificationUrl ? `<div class="profile-row"><span class="profile-label">Certificate (${profile.certificationType||'—'})</span><span class="profile-value">${statusPill(profile.certificationStatus)}</span></div>` : ''}
-            ${profile.audioSampleUrl ? `<div class="profile-row"><span class="profile-label">Recitation sample</span><span class="profile-value"><audio controls src="${profile.audioSampleUrl}" style="max-width:220px;"></audio></span></div>` : ''}
-          </div>
-          <a href="profile-setup.html" class="btn ghost small" style="margin-top:16px;">Edit profile</a>`;
+        wrap.innerHTML = `
+          <div class="profile-layout">
+            <aside class="profile-sidebar">
+              <a href="dashboard.html" class="side-link">Dashboard</a>
+              <a href="profile.html" class="side-link active">Profile</a>
+              <a href="#" class="side-link" onclick="doLogout();return false;">Log out</a>
+            </aside>
+            <div class="profile-card">
+              <p style="color:var(--ink-2);">You haven't completed your profile yet.</p>
+              <a href="profile-setup.html" class="btn primary small">Complete your profile</a>
+            </div>
+          </div>`;
+        return;
+      }
+
+      if (isTutor){
+        fieldsHtml = `
+          ${field('Email', user.email)}
+          ${field('Gender', profile.gender)}
+          ${field('Country', profile.country)}
+          ${field('Phone', profile.phone)}
+          ${field('WhatsApp', profile.whatsapp)}
+          ${field('Subjects', profile.subjects)}
+          ${field('Teaches', profile.ageGroupsTaught)}
+          ${field('Class platform', profile.platform)}
+          ${field('Availability', profile.availability)}
+          ${field('Experience', profile.experience)}
+          ${field('Qualification', profile.qualification)}
+          ${field('Languages', profile.languages)}
+          ${field('Price', profile.price ? '$' + profile.price + ' / class' : '')}
+          ${field('Listed publicly', profile.isListed ? 'Yes — students can find and book you ✓' : 'Not yet — complete every required field')}
+        `;
+        bioHtml = fieldFull('Bio', profile.bio);
+
+        if (profile.certificationUrl){
+          certHtml = `
+            <div class="field-full" style="margin-top:8px;">
+              <span class="field-label">Certification${profile.certificationType ? ' — ' + profile.certificationType : ''}</span>
+              <div style="margin-top:8px;display:flex;align-items:center;gap:12px;">
+                ${isImageUrl(profile.certificationUrl)
+                  ? `<img src="${profile.certificationUrl}" style="width:160px;border-radius:8px;object-fit:cover;">`
+                  : `<a href="${profile.certificationUrl}" target="_blank" class="btn ghost small">View certificate</a>`}
+                ${statusPill(profile.certificationStatus)}
+              </div>
+            </div>`;
+        }
+
+        if (profile.audioSampleUrl){
+          audioHtml = `
+            <div class="field-full" style="margin-top:8px;">
+              <span class="field-label">Recitation sample</span>
+              <audio controls src="${profile.audioSampleUrl}" style="width:100%;margin-top:8px;"></audio>
+            </div>`;
+        }
       } else {
-        body = `
-          <div class="profile-card">
-            ${row('Gender', profile.gender)}
-            ${row('Country', profile.country)}
-            ${row('Age group', profile.ageGroup)}
-            ${row('Phone', profile.phone)}
-            ${row('WhatsApp', profile.whatsapp)}
-            ${row('Wants to learn', profile.interests)}
-            ${row('Languages', profile.languages)}
-            ${row('Availability', profile.availability)}
-            ${row('About', profile.bio)}
-          </div>
-          <a href="profile-setup.html" class="btn ghost small" style="margin-top:16px;">Edit profile</a>`;
+        fieldsHtml = `
+          ${field('Email', user.email)}
+          ${field('Gender', profile.gender)}
+          ${field('Country', profile.country)}
+          ${field('Age group', profile.ageGroup)}
+          ${field('Phone', profile.phone)}
+          ${field('WhatsApp', profile.whatsapp)}
+          ${field('Wants to learn', profile.interests)}
+          ${field('Languages', profile.languages)}
+          ${field('Availability', profile.availability)}
+        `;
+        bioHtml = fieldFull('About', profile.bio);
       }
 
       wrap.innerHTML = `
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
-          ${picHtml}
-          <div>
-            <h2 style="margin-bottom:.1em;">${name}</h2>
-            <p style="margin:0;color:var(--ink-2);">${isTutor ? 'Tutor account' : 'Student account'} · ${user.email}</p>
+        <div class="profile-layout">
+          <aside class="profile-sidebar">
+            <a href="dashboard.html" class="side-link">Dashboard</a>
+            <a href="profile.html" class="side-link active">Profile</a>
+            <a href="#" class="side-link" onclick="doLogout();return false;">Log out</a>
+          </aside>
+
+          <div class="profile-card">
+            <div class="profile-header">
+              ${picHtml}
+              <div>
+                <h2 style="margin:0 0 6px;">${name}</h2>
+                <span class="role-badge">${isTutor ? 'TUTOR' : 'STUDENT'}</span>
+              </div>
+            </div>
+
+            <div class="field-grid">
+              ${fieldsHtml}
+              ${bioHtml}
+              ${certHtml}
+              ${audioHtml}
+            </div>
+
+            <a href="profile-setup.html" class="btn primary small" style="margin-top:20px;">Edit profile</a>
           </div>
-        </div>
-        ${body}
-        <div style="margin-top:24px;">
-          <a href="dashboard.html" class="btn ghost small">View trial requests</a>
         </div>`;
     }catch(err){
-      wrap.innerHTML = `<p style="color:var(--rose);">Could not load your profile: ${err.message}</p>`;
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load your profile: ${err.message}</p>`;
     }
   }
 
   load();
 </script>
 <style>
-  .profile-card{ display:flex; flex-direction:column; gap:0; border:1px solid var(--line,#eee); border-radius:10px; overflow:hidden; }
-  .profile-row{ display:flex; justify-content:space-between; gap:16px; padding:12px 16px; border-bottom:1px solid var(--line,#eee); }
-  .profile-row:last-child{ border-bottom:none; }
-  .profile-label{ color:var(--ink-2,#888); font-size:.85rem; flex-shrink:0; }
-  .profile-value{ text-align:right; font-weight:500; }
+  .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
+  .profile-sidebar{
+    width:180px; flex-shrink:0; display:flex; flex-direction:column; gap:8px;
+    border:1px solid var(--line,#eee); border-radius:10px; padding:12px; background:#fff;
+  }
+  .side-link{
+    padding:10px 12px; border-radius:8px; text-decoration:none; color:var(--ink-2,#555);
+    font-weight:500; font-size:.92rem;
+  }
+  .side-link:hover{ background:#f4f4f4; }
+  .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
+
+  .profile-card{
+    flex:1; min-width:0; border:1px solid var(--line,#eee); border-radius:12px;
+    padding:24px; background:#fff;
+  }
+  .profile-header{ display:flex; align-items:center; gap:16px; margin-bottom:20px; }
+  .profile-avatar-img{ width:64px; height:64px; border-radius:50%; object-fit:cover; }
+  .role-badge{
+    display:inline-block; background:var(--green,#1e7d43); color:#fff; font-size:.7rem;
+    font-weight:700; letter-spacing:.04em; padding:2px 10px; border-radius:999px;
+  }
+
+  .field-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:18px 32px;
+    border-top:1px solid var(--line,#eee); padding-top:18px;
+  }
+  .field{ display:flex; flex-direction:column; gap:4px; }
+  .field-full{ grid-column:1 / -1; display:flex; flex-direction:column; gap:4px; }
+  .field-label{
+    font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2,#888);
+  }
+  .field-value{ font-size:.95rem; color:var(--ink,#222); }
+
+  @media (max-width:720px){
+    .profile-layout{ flex-direction:column; }
+    .profile-sidebar{ width:100%; flex-direction:row; }
+    .field-grid{ grid-template-columns:1fr; }
+  }
 </style>
 </body>
 </html>
