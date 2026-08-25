@@ -68,8 +68,8 @@ document.getElementById('registerForm').addEventListener('submit', async e=>{
       password: document.getElementById('password').value,
       role,
     });
-    msg.className='msg success'; msg.textContent='Account created! Redirecting to your dashboard...'; msg.style.display='block';
-    setTimeout(()=> location.href='dashboard.html', 900);
+    msg.className='msg success'; msg.textContent='Account created! Redirecting to complete your profile...'; msg.style.display='block';
+    setTimeout(()=> location.href='profile-setup.html', 900);
   }catch(err){
     msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
     submitBtn.disabled = false;
