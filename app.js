@@ -236,9 +236,9 @@ function renderNav(active){
   const linkHtml = links.map(([href,label]) =>
     `<a href="${href}" class="${active===label?'active':''}">${label}</a>`).join('');
 
+  const profileActive = active === 'Profile';
   const cta = user
-    ? `<a class="nav-user" href="dashboard.html">${initials(user.firstName+' '+user.lastName)}</a>
-       <a class="btn ghost small" href="dashboard.html">Profile</a>
+    ? `<a class="btn ${profileActive?'primary':'ghost'} small" href="dashboard.html">Profile</a>
        <button class="btn ghost small" onclick="logout()">Log out</button>`
     : `<a class="btn ghost small" href="login.html">Login</a>
        <a class="btn primary small" href="register.html">Register</a>`;
