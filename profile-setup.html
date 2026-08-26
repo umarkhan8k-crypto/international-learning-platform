@@ -85,7 +85,7 @@
 <div class="field" id="f_t_availability"><label>Availability</label><input type="text" id="t_availability" placeholder="e.g. Weekday evenings (GMT+5)"><div class="field-error"></div></div>
 
 <div class="section-label">Certification &amp; experience</div>
-<div class="field">
+<div class="field" id="f_t_cert">
 <label>Hifz / Tajweed Ijazah certification <span style="font-weight:400;">(optional)</span></label>
 <div class="cert-type-row">
 <select id="t_certType">
@@ -192,7 +192,9 @@
 <script>
 const user = currentUser();
 if (!user){ location.href = 'register.html'; }
-let tPic='', tCert='', tAudio='', sPic='';
+let tPic='', tCert='', tCertRawUrl='', tCertRejected=false, tAudio='', sPic='';
+const CERT_HIFZ_WORDS = ['hifz','hafiz','huffaz','حافظ','حفظ','حفظہ'];
+const CERT_TAJWEED_WORDS = ['tajweed','tajwid','تجوید'];
 
 /* ---------- validation helpers ---------- */
 function setError(fieldId, message){
@@ -269,33 +271,52 @@ const tPicBox = initUploadBox(document.getElementById('t_picMount'), {
 });
 const tCertBox = initUploadBox(document.getElementById('t_certMount'), {
   accept:'image/*', kind:'image', label:"Tap to upload your certificate — leave empty if you don't have one",
+  removable: true,
   onChange: async (dataUrl) => {
-    const certType = document.getElementById('t_certType').value;
-    if (!certType){
-      tCertBox.clear();
-      tCertBox.setStatus('Please select a certificate type above before uploading.', 'error');
-      tCert = '';
-      return;
-    }
-    tCertBox.setStatus('Checking certificate...', 'checking');
-    const text = await ocrExtractText(dataUrl);
-    const hifzWords = ['hifz','hafiz','huffaz','حافظ','حفظ','حفظہ'];
-    const tajweedWords = ['tajweed','tajwid','تجوید'];
-    const keywords = certType === 'Hifz Ijazah' ? hifzWords : tajweedWords;
-    const matched = text ? keywords.some(k => text.includes(k)) : false;
-    if (matched){
-      tCert = dataUrl;
-      tCertBox.setStatus('Uploaded — matched as a ' + certType + ', saved for final manual review ✓', 'success');
-    } else {
-      tCertBox.clear();
-      tCertBox.setStatus('⚠ Rejected — this does not appear to be a genuine ' + certType + '. Only original Hifz or Tajweed Ijazah certificates are accepted; nothing else will be uploaded. Please try again with a valid certificate, or leave this empty.', 'error');
-      tCert = '';
-    }
+    tCertRawUrl = dataUrl;
+    await runCertCheck(dataUrl);
   },
-  onClear:()=>{ tCert=''; },
+  onClear:()=>{ tCert=''; tCertRawUrl=''; tCertRejected=false; clearError('f_t_cert'); },
+  onRemove:()=>{ tCert=''; tCertRawUrl=''; tCertRejected=false; tCertBox.setStatus('Certificate removed — this is optional, you can leave it empty.', 'checking'); clearError('f_t_cert'); },
 });
+
+/* Runs (or re-runs) the OCR match check for whatever certificate image is
+   currently uploaded (rawUrl), against whichever certificate type is
+   currently selected. Used both right after upload and whenever the
+   certificate type dropdown changes, so the result always matches the
+   current type selection. Sets tCertRejected so the submit handler can
+   block profile creation until the problem is fixed. */
+async function runCertCheck(rawUrl){
+  const certType = document.getElementById('t_certType').value;
+  if (!certType){
+    tCertBox.clear();
+    tCertBox.setStatus('Please select a certificate type above before uploading.', 'error');
+    tCert = '';
+    tCertRejected = true;
+    setError('f_t_cert', 'Please select a certificate type before uploading, or remove the file.');
+    return;
+  }
+  tCertBox.setStatus('Checking certificate...', 'checking');
+  const text = await ocrExtractText(rawUrl);
+  const keywords = certType === 'Hifz Ijazah' ? CERT_HIFZ_WORDS : CERT_TAJWEED_WORDS;
+  const matched = text ? keywords.some(k => text.includes(k)) : false;
+  if (matched){
+    tCert = rawUrl;
+    tCertRejected = false;
+    tCertBox.setExisting(rawUrl);
+    tCertBox.setStatus('Uploaded — matched as a ' + certType + ', saved for final manual review ✓', 'success');
+    clearError('f_t_cert');
+  } else {
+    tCertBox.clear();
+    tCertBox.setStatus('⚠ Rejected — this does not appear to be a genuine ' + certType + '. Only original Hifz or Tajweed Ijazah certificates are accepted; nothing else will be uploaded. Please upload a valid certificate, or remove it since it is optional.', 'error');
+    tCert = '';
+    tCertRejected = true;
+    setError('f_t_cert', 'This certificate was rejected. Upload a valid Hifz/Tajweed Ijazah, or remove it to continue without one.');
+  }
+}
+
 document.getElementById('t_certType').addEventListener('change', ()=>{
-  if (tCertBox.getValue()){ tCertBox.setStatus('Certificate type changed — it will be re-checked against the new type.', 'checking'); }
+  if (tCertRawUrl){ runCertCheck(tCertRawUrl); }
 });
 const tAudioBox = initUploadBox(document.getElementById('t_audioMount'), {
   accept:'audio/*', kind:'audio', label:'Tap to upload a short recitation sample',
@@ -348,7 +369,7 @@ getMyProfile().then(profile => {
   if (profile.platform) document.getElementById('t_platform').value = profile.platform;
   if (profile.availability) document.getElementById('t_availability').value = profile.availability;
   if (profile.certificationType) document.getElementById('t_certType').value = profile.certificationType;
-  if (profile.certificationUrl){ tCert = profile.certificationUrl; tCertBox.setExisting(profile.certificationUrl); }
+  if (profile.certificationUrl){ tCert = profile.certificationUrl; tCertRawUrl = profile.certificationUrl; tCertRejected = false; tCertBox.setExisting(profile.certificationUrl); }
   if (profile.experience) document.getElementById('t_exp').value = profile.experience;
   if (profile.audioSampleUrl){ tAudio = profile.audioSampleUrl; tAudioBox.setExisting(profile.audioSampleUrl); }
   if (profile.qualification) document.getElementById('t_qualification').value = profile.qualification;
@@ -374,6 +395,7 @@ ok = requireSelect('t_platform','f_t_platform','a class platform') && ok;
 ok = requireText('t_availability','f_t_availability','Availability') && ok;
 ok = requireText('t_exp','f_t_exp','Years of experience') && ok;
 if (!tAudio){ setError('f_t_audio','Please upload a recitation sample.'); ok = false; } else { clearError('f_t_audio'); }
+if (tCertRejected){ setError('f_t_cert', 'This certificate was rejected. Upload a valid Hifz/Tajweed Ijazah, or remove it to continue without one.'); ok = false; } else { clearError('f_t_cert'); }
 ok = requireText('t_qualification','f_t_qualification','Qualification') && ok;
 ok = requireText('t_bio','f_t_bio','Bio') && ok;
 const priceVal = document.getElementById('t_price').value;
