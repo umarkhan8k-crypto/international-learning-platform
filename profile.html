@@ -55,7 +55,7 @@
   async function load(){
     const wrap = document.getElementById('profileWrap');
     try{
-      const { profile } = await getMyProfile();
+      const profile = await getMyProfile();
       const isTutor = user.role === 'TUTOR';
       const name = user.firstName + ' ' + user.lastName;
 
