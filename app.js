@@ -242,8 +242,12 @@ async function updateTrialRequestStatus(id, status){
   return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
+/* FIX: backend returns { profile: {...} } — unwrap it here so every caller
+   (profile-setup.html, profile.html, etc.) gets the actual profile object
+   directly, with real fields like country/phone/subjects populated. */
 async function getMyProfile(){
-  return apiRequest('/profile/me');
+  const data = await apiRequest('/profile/me');
+  return data.profile;
 }
 
 async function fetchStats(){
