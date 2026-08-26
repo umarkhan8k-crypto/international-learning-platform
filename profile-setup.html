@@ -322,6 +322,38 @@ document.getElementById('t_waSame').addEventListener('change', (e)=>{
 document.getElementById('f_t_wa').style.display = e.target.checked ? 'none' : 'block';
 });
 
+/* ---------- pre-fill existing profile data (edit mode) ---------- */
+getMyProfile().then(profile => {
+  if (!profile) return;
+  if (profile.gender){
+    const el = document.querySelector(`input[name="t_gender"][value="${profile.gender}"]`);
+    if (el) el.checked = true;
+  }
+  if (profile.country) tCountry.setValue(profile.country);
+  if (profile.phone) tPhone.setFullNumber(profile.phone);
+  if (profile.whatsapp && profile.whatsapp !== profile.phone){
+    document.getElementById('t_waSame').checked = false;
+    document.getElementById('f_t_wa').style.display = 'block';
+    tWa.setFullNumber(profile.whatsapp);
+  }
+  if (profile.pictureUrl){ tPic = profile.pictureUrl; tPicBox.setExisting(profile.pictureUrl); }
+  if (profile.subjects) tSubjects.setValues(profile.subjects);
+  if (profile.ageGroupsTaught){
+    const el = document.querySelector(`input[name="t_ageGroups"][value="${profile.ageGroupsTaught}"]`);
+    if (el) el.checked = true;
+  }
+  if (profile.platform) document.getElementById('t_platform').value = profile.platform;
+  if (profile.availability) document.getElementById('t_availability').value = profile.availability;
+  if (profile.certificationType) document.getElementById('t_certType').value = profile.certificationType;
+  if (profile.certificationUrl){ tCert = profile.certificationUrl; tCertBox.setExisting(profile.certificationUrl); }
+  if (profile.experience) document.getElementById('t_exp').value = profile.experience;
+  if (profile.audioSampleUrl){ tAudio = profile.audioSampleUrl; tAudioBox.setExisting(profile.audioSampleUrl); }
+  if (profile.qualification) document.getElementById('t_qualification').value = profile.qualification;
+  if (profile.bio) document.getElementById('t_bio').value = profile.bio;
+  if (profile.price) document.getElementById('t_price').value = profile.price;
+  if (profile.languages) tLang.setValues(profile.languages);
+}).catch(()=>{ /* no existing profile yet — fine for first-time setup */ });
+
 document.getElementById('tutorForm').addEventListener('submit', (e)=>{
 e.preventDefault();
 const waSame = document.getElementById('t_waSame').checked;
@@ -400,6 +432,31 @@ const sPicBox = initUploadBox(document.getElementById('s_picMount'), {
 document.getElementById('s_waSame').addEventListener('change', (e)=>{
 document.getElementById('f_s_wa').style.display = e.target.checked ? 'none' : 'block';
 });
+
+/* ---------- pre-fill existing profile data (edit mode) ---------- */
+getMyProfile().then(profile => {
+  if (!profile) return;
+  if (profile.gender){
+    const el = document.querySelector(`input[name="s_gender"][value="${profile.gender}"]`);
+    if (el) el.checked = true;
+  }
+  if (profile.country) sCountry.setValue(profile.country);
+  if (profile.ageGroup){
+    const el = document.querySelector(`input[name="s_ageGroup"][value="${profile.ageGroup}"]`);
+    if (el) el.checked = true;
+  }
+  if (profile.phone) sPhone.setFullNumber(profile.phone);
+  if (profile.whatsapp && profile.whatsapp !== profile.phone){
+    document.getElementById('s_waSame').checked = false;
+    document.getElementById('f_s_wa').style.display = 'block';
+    sWa.setFullNumber(profile.whatsapp);
+  }
+  if (profile.pictureUrl){ sPic = profile.pictureUrl; sPicBox.setExisting(profile.pictureUrl); }
+  if (profile.interests) sInterests.setValues(profile.interests);
+  if (profile.languages) sLang.setValues(profile.languages);
+  if (profile.availability) document.getElementById('s_availability').value = profile.availability;
+  if (profile.bio) document.getElementById('s_bio').value = profile.bio;
+}).catch(()=>{ /* no existing profile yet — fine for first-time setup */ });
 
 document.getElementById('studentForm').addEventListener('submit', (e)=>{
 e.preventDefault();
