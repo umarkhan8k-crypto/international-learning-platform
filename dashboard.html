@@ -9,15 +9,23 @@
 <body data-page="Profile">
 <div id="nav"></div>
 
-<section style="padding:48px 0;">
+<section style="padding:40px 0;">
   <div class="container">
-    <div id="dashHead"></div>
-    <div class="dash-row" style="margin-top:2rem;">
-      <div class="card">
-        <h3 id="reqTitle">Your trial requests</h3>
-        <div id="reqList"><p style="color:var(--ink-2);">Loading...</p></div>
+    <div class="profile-layout">
+      <aside class="profile-sidebar">
+        <a href="dashboard.html" class="side-link active">Dashboard</a>
+        <a href="profile.html" class="side-link">Profile</a>
+        <a href="requests.html" class="side-link">Requests</a>
+        <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
+      </aside>
+
+      <div style="flex:1;min-width:0;">
+        <div id="dashHead"></div>
+        <div class="card" style="margin-top:1.5rem;">
+          <h3 id="reqTitle">Your trial requests</h3>
+          <div id="reqList"><p style="color:var(--ink-2);">Loading...</p></div>
+        </div>
       </div>
-      <div class="card" id="sideCard"></div>
     </div>
   </div>
 </section>
@@ -42,18 +50,7 @@
 
   function statusBadge(s){ return `<span class="badge-status ${(s||'').toLowerCase()}">${s}</span>`; }
 
-  if (isTutor){
-    document.getElementById('reqTitle').textContent = 'Trial requests from students';
-    document.getElementById('sideCard').innerHTML = `
-      <h3>Your teaching subjects</h3>
-      <p style="color:var(--ink-2);font-size:.88rem;">Manage your public profile from the profile page.</p>
-      <a href="tutors.html" class="btn ghost small block">View tutor listing</a>`;
-  } else {
-    document.getElementById('sideCard').innerHTML = `
-      <h3>Find your next tutor</h3>
-      <p style="color:var(--ink-2);font-size:.88rem;">Browse tutors by subject, language and price.</p>
-      <a href="tutors.html" class="btn primary small block">Browse tutors</a>`;
-  }
+  document.getElementById('reqTitle').textContent = isTutor ? 'Trial requests from students' : 'Your trial requests';
 
   async function loadRequests(){
     try{
@@ -102,5 +99,23 @@
 
   loadRequests();
 </script>
+<style>
+  .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
+  .profile-sidebar{
+    width:180px; flex-shrink:0; display:flex; flex-direction:column; gap:8px;
+    border:1px solid var(--line,#eee); border-radius:10px; padding:12px; background:#fff;
+  }
+  .side-link{
+    padding:10px 12px; border-radius:8px; text-decoration:none; color:var(--ink-2,#555);
+    font-weight:500; font-size:.92rem;
+  }
+  .side-link:hover{ background:#f4f4f4; }
+  .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
+
+  @media (max-width:720px){
+    .profile-layout{ flex-direction:column; }
+    .profile-sidebar{ width:100%; flex-direction:row; }
+  }
+</style>
 </body>
 </html>
