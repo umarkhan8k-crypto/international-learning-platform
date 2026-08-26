@@ -416,16 +416,37 @@ function initUploadBox(mount, opts={}){
 
   function showPreview(url){
     preview.innerHTML = '';
+    const previewInner = document.createElement('div');
+    previewInner.style.cssText = 'position:relative;display:inline-block;';
     if (opts.kind === 'image'){
       const img = document.createElement('img');
       img.src = url;
       img.style.cssText = `max-width:120px;border-radius:${opts.previewShape==='circle'?'50%':'8px'};display:block;`;
-      preview.appendChild(img);
+      previewInner.appendChild(img);
     } else if (opts.kind === 'audio'){
       const audio = document.createElement('audio');
       audio.controls = true; audio.src = url;
-      preview.appendChild(audio);
+      previewInner.appendChild(audio);
     }
+    if (opts.removable){
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Remove';
+      removeBtn.setAttribute('aria-label', 'Remove file');
+      removeBtn.style.cssText = 'position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;border:none;background:#c0392b;color:#fff;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;box-shadow:0 1px 3px rgba(0,0,0,.3);';
+      removeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        input.value = '';
+        preview.innerHTML = '';
+        currentUrl = '';
+        setStatus('');
+        if (opts.onRemove) opts.onRemove();
+      });
+      previewInner.appendChild(removeBtn);
+    }
+    preview.appendChild(previewInner);
   }
 
   input.addEventListener('change', async () => {
