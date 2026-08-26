@@ -95,6 +95,7 @@
 </select>
 </div>
 <div class="hint" style="margin:-4px 0 8px;">Only original Hifz or Tajweed Ijazah certificates are accepted — in any language (English, Arabic, Urdu etc). Anything else will be rejected on manual review, even if uploaded here.</div>
+<div id="t_certWarning" style="color:#c0392b;font-weight:700;margin:-2px 0 10px;font-size:.85rem;">⚠ Only ORIGINAL Hifz or Tajweed Ijazah certificates are accepted (any language). Any other picture/document will be automatically rejected and will not be uploaded.</div>
 <div id="t_certMount"></div>
 <div class="field-error"></div>
 </div>
@@ -271,22 +272,24 @@ const tCertBox = initUploadBox(document.getElementById('t_certMount'), {
   onChange: async (dataUrl) => {
     const certType = document.getElementById('t_certType').value;
     if (!certType){
-      tCertBox.setStatus('Please select a certificate type above before uploading.', 'error');
       tCertBox.clear();
+      tCertBox.setStatus('Please select a certificate type above before uploading.', 'error');
       tCert = '';
       return;
     }
     tCertBox.setStatus('Checking certificate...', 'checking');
-    tCert = dataUrl;
     const text = await ocrExtractText(dataUrl);
     const hifzWords = ['hifz','hafiz','huffaz','حافظ','حفظ','حفظہ'];
     const tajweedWords = ['tajweed','tajwid','تجوید'];
     const keywords = certType === 'Hifz Ijazah' ? hifzWords : tajweedWords;
     const matched = text ? keywords.some(k => text.includes(k)) : false;
     if (matched){
+      tCert = dataUrl;
       tCertBox.setStatus('Uploaded — matched as a ' + certType + ', saved for final manual review ✓', 'success');
     } else {
-      tCertBox.setStatus('Uploaded — could not automatically confirm this is a genuine ' + certType + '. Only real Hifz/Tajweed certificates are accepted; this will be manually reviewed and rejected if it is not genuine.', 'checking');
+      tCertBox.clear();
+      tCertBox.setStatus('⚠ Rejected — this does not appear to be a genuine ' + certType + '. Only original Hifz or Tajweed Ijazah certificates are accepted; nothing else will be uploaded. Please try again with a valid certificate, or leave this empty.', 'error');
+      tCert = '';
     }
   },
   onClear:()=>{ tCert=''; },
