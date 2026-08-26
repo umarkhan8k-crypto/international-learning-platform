@@ -68,15 +68,21 @@ function buildSearchDropdown(mount, opts){
   wrap.style.cssText = 'position:relative;';
   const box = document.createElement('div');
   box.tabIndex = 0;
-  box.style.cssText = 'border:1px solid var(--line,#ccc);border-radius:8px;padding:10px 12px;cursor:pointer;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px;';
+  box.style.cssText = 'border:1px solid var(--line,#ccc);border-radius:8px;padding:10px 12px;cursor:pointer;background:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px;box-sizing:border-box;';
   const boxLabel = document.createElement('span');
   boxLabel.style.cssText = 'color:var(--ink-2,#888);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
   boxLabel.textContent = opts.placeholder || 'Select';
   const caret = document.createElement('span'); caret.textContent = '▾'; caret.style.color = 'var(--ink-2,#888)';
   box.appendChild(boxLabel); box.appendChild(caret);
 
+  /* Panel is positioned with fixed positioning and its coordinates are computed
+     in JS (see openPanel) relative to the viewport. This makes it immune to
+     any ancestor's overflow/width/transform quirks, so it can never render
+     off-screen to the right (or left) — it is always clamped to fit within
+     the visible viewport, regardless of screen size or where the field sits
+     on the page. */
   const panel = document.createElement('div');
-  panel.style.cssText = 'display:none;position:absolute;z-index:50;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--line,#ccc);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);max-height:260px;overflow:auto;';
+  panel.style.cssText = 'display:none;position:fixed;z-index:9999;background:#fff;border:1px solid var(--line,#ccc);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);overflow:auto;box-sizing:border-box;';
   const searchWrap = document.createElement('div');
   searchWrap.style.cssText = 'padding:8px;position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line,#eee);';
   const search = document.createElement('input');
@@ -86,7 +92,8 @@ function buildSearchDropdown(mount, opts){
   const list = document.createElement('div');
   panel.appendChild(searchWrap); panel.appendChild(list);
 
-  wrap.appendChild(box); wrap.appendChild(panel);
+  wrap.appendChild(box);
+  document.body.appendChild(panel); /* appended to body so it can never be clipped by a parent's overflow */
   mount.appendChild(wrap);
 
   let selected = opts.single ? '' : [];
@@ -108,7 +115,7 @@ function buildSearchDropdown(mount, opts){
     list.innerHTML = '';
     filtered.forEach(item => {
       const row = document.createElement('div');
-      row.style.cssText = 'padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;';
+      row.style.cssText = 'padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:normal;word-break:break-word;';
       row.addEventListener('mouseenter', () => row.style.background = 'var(--bg-2,#f4f4f4)');
       row.addEventListener('mouseleave', () => row.style.background = '');
       if (opts.single){
@@ -144,9 +151,46 @@ function buildSearchDropdown(mount, opts){
     }
   }
 
-  function openPanel(){ panel.style.display = 'block'; search.value = ''; renderList(''); search.focus(); document.addEventListener('click', outsideClick); }
-  function closePanel(){ panel.style.display = 'none'; document.removeEventListener('click', outsideClick); }
-  function outsideClick(e){ if (!wrap.contains(e.target)) closePanel(); }
+  function positionPanel(){
+    const margin = 8;
+    const rect = box.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const panelWidth = Math.max(180, Math.min(rect.width, vw - margin * 2));
+    let left = rect.left;
+    if (left + panelWidth > vw - margin) left = vw - margin - panelWidth;
+    if (left < margin) left = margin;
+    let top = rect.bottom + 4;
+    let maxHeight = Math.min(260, vh - top - margin);
+    if (maxHeight < 140){
+      /* not enough room below — open the panel above the box instead */
+      top = Math.max(margin, rect.top - 4 - Math.min(260, rect.top - margin * 2));
+      maxHeight = Math.min(260, rect.top - margin - 4);
+    }
+    panel.style.left = left + 'px';
+    panel.style.top = top + 'px';
+    panel.style.width = panelWidth + 'px';
+    panel.style.maxHeight = Math.max(120, maxHeight) + 'px';
+  }
+
+  function openPanel(){
+    positionPanel();
+    panel.style.display = 'block';
+    search.value = '';
+    renderList('');
+    search.focus();
+    document.addEventListener('click', outsideClick);
+    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onScrollOrResize);
+  }
+  function closePanel(){
+    panel.style.display = 'none';
+    document.removeEventListener('click', outsideClick);
+    window.removeEventListener('scroll', onScrollOrResize, true);
+    window.removeEventListener('resize', onScrollOrResize);
+  }
+  function onScrollOrResize(){ closePanel(); }
+  function outsideClick(e){ if (!wrap.contains(e.target) && !panel.contains(e.target)) closePanel(); }
 
   box.addEventListener('click', () => { panel.style.display === 'block' ? closePanel() : openPanel(); });
   search.addEventListener('input', () => renderList(search.value));
@@ -367,6 +411,7 @@ function initUploadBox(mount, opts={}){
   function setStatus(text, type){
     status.textContent = text || '';
     status.style.color = type==='error' ? 'var(--rose,#c0392b)' : type==='success' ? 'var(--gold,#2e7d32)' : 'var(--ink-2)';
+    status.style.fontWeight = type==='error' ? '700' : '400';
   }
 
   function showPreview(url){
@@ -402,7 +447,7 @@ function initUploadBox(mount, opts={}){
   return {
     getValue: () => currentUrl,
     setStatus,
-    clear: () => { input.value = ''; preview.innerHTML = ''; currentUrl = ''; setStatus(''); },
+    clear: () => { input.value = ''; preview.innerHTML = ''; currentUrl = ''; },
     setExisting: (url) => {
       if (!url) return;
       currentUrl = url;
