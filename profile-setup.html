@@ -199,7 +199,7 @@
 <script>
 const user = currentUser();
 if (!user){ location.href = 'register.html'; }
-let tPic='', tCert='', tCertRawUrl='', tCertRejected=false, tCertChecking=false, tAudio='', sPic='';
+let tPic='', tCert='', tCertRawUrl='', tCertRejected=false, tAudio='', sPic='';
 const CERT_HIFZ_WORDS = ['hifz','hafiz','huffaz','حافظ','حفظ','حفظہ'];
 const CERT_TAJWEED_WORDS = ['tajweed','tajwid','تجوید'];
 
@@ -283,20 +283,17 @@ const tCertBox = initUploadBox(document.getElementById('t_certMount'), {
     tCertRawUrl = dataUrl;
     await runCertCheck(dataUrl);
   },
-  onClear:()=>{ tCert=''; tCertRawUrl=''; tCertRejected=false; tCertChecking=false; clearError('f_t_cert'); updateCertSubmitState(); },
-  onRemove:()=>{ tCert=''; tCertRawUrl=''; tCertRejected=false; tCertChecking=false; tCertBox.setStatus('Certificate removed — this is optional, you can leave it empty.', 'checking'); clearError('f_t_cert'); updateCertSubmitState(); },
+  onClear:()=>{ tCert=''; tCertRawUrl=''; tCertRejected=false; clearError('f_t_cert'); },
+  onRemove:()=>{ tCert=''; tCertRawUrl=''; tCertRejected=false; tCertBox.setStatus('Certificate removed — this is optional, you can leave it empty.', 'checking'); clearError('f_t_cert'); },
 });
 
-/* Runs (or re-runs) the OCR match check for whatever certificate image is
+/* Runs (or re-runs) the match check for whatever certificate image is
    currently uploaded (rawUrl), against whichever certificate type is
    currently selected. Used both right after upload and whenever the
    certificate type dropdown changes, so the result always matches the
-   current type selection. Sets tCertRejected so the submit handler can
-   block profile creation until the problem is fixed. While the check is
-   running, tCertChecking disables the Create button so a click can never
-   race the async check (which previously could show a "please upload"
-   error on a certificate that was, in fact, uploaded and still being
-   verified). */
+   current type selection. A genuine Hifz/Tajweed certificate is accepted
+   directly; anything else is rejected directly — tCertRejected then blocks
+   profile creation until it's fixed. */
 async function runCertCheck(rawUrl){
   const certType = document.getElementById('t_certType').value;
   if (!certType){
@@ -304,37 +301,17 @@ async function runCertCheck(rawUrl){
     tCertBox.setStatus('Please select a certificate type above before uploading.', 'error');
     tCert = '';
     tCertRejected = true;
-    tCertChecking = false;
     setError('f_t_cert', 'Please select a certificate type before uploading, or remove the file.');
-    updateCertSubmitState();
     return;
   }
-  tCertChecking = true;
-  updateCertSubmitState();
-  tCertBox.setStatus('Checking certificate...', 'checking');
-  clearError('f_t_cert');
   const text = await ocrExtractText(rawUrl);
-  tCertChecking = false;
-  if (text === null){
-    /* The automatic check itself could not complete (e.g. a slow or
-       interrupted connection while downloading the recognition data) —
-       this is different from a genuine mismatch, so don't tell the tutor
-       their certificate looks wrong. Ask them to simply try again. */
-    tCertBox.clear();
-    tCertBox.setStatus('⚠ Could not check this certificate automatically (likely a slow connection). Please tap "Choose file" and upload it again.', 'error');
-    tCert = '';
-    tCertRejected = true;
-    setError('f_t_cert', 'The automatic check did not finish — please upload the certificate again.');
-    updateCertSubmitState();
-    return;
-  }
   const keywords = certType === 'Hifz Ijazah' ? CERT_HIFZ_WORDS : CERT_TAJWEED_WORDS;
-  const matched = keywords.some(k => text.includes(k));
+  const matched = text ? keywords.some(k => text.includes(k)) : false;
   if (matched){
     tCert = rawUrl;
     tCertRejected = false;
     tCertBox.setExisting(rawUrl);
-    tCertBox.setStatus('Uploaded — matched as a ' + certType + ', saved for final manual review ✓', 'success');
+    tCertBox.setStatus('Uploaded — matched as a ' + certType + ' ✓', 'success');
     clearError('f_t_cert');
   } else {
     tCertBox.clear();
@@ -343,7 +320,6 @@ async function runCertCheck(rawUrl){
     tCertRejected = true;
     setError('f_t_cert', 'This certificate was rejected. Upload a valid Hifz/Tajweed Ijazah, or turn off the box above to continue without one.');
   }
-  updateCertSubmitState();
 }
 
 document.getElementById('t_certType').addEventListener('change', ()=>{
@@ -352,20 +328,9 @@ document.getElementById('t_certType').addEventListener('change', ()=>{
 
 const tCertToggle = document.getElementById('t_certToggle');
 const tCertField = document.getElementById('f_t_cert');
-const tSubmitBtn = document.querySelector('#tutorForm button[type="submit"]');
-function updateCertSubmitState(){
-  if (tCertToggle.checked && tCertChecking){
-    tSubmitBtn.disabled = true;
-    tSubmitBtn.textContent = 'Checking certificate...';
-  } else {
-    tSubmitBtn.disabled = false;
-    tSubmitBtn.textContent = 'Create profile';
-  }
-}
 tCertToggle.addEventListener('change', ()=>{
   tCertField.style.display = tCertToggle.checked ? 'block' : 'none';
   clearError('f_t_cert');
-  updateCertSubmitState();
 });
 const tAudioBox = initUploadBox(document.getElementById('t_audioMount'), {
   accept:'audio/*', kind:'audio', label:'Tap to upload a short recitation sample',
@@ -445,10 +410,7 @@ ok = requireText('t_availability','f_t_availability','Availability') && ok;
 ok = requireText('t_exp','f_t_exp','Years of experience') && ok;
 if (!tAudio){ setError('f_t_audio','Please upload a recitation sample.'); ok = false; } else { clearError('f_t_audio'); }
 if (tCertToggle.checked){
-  if (tCertChecking){
-    setError('f_t_cert', 'Please wait — we are still checking your certificate.');
-    ok = false;
-  } else if (!tCert || tCertRejected){
+  if (!tCert || tCertRejected){
     setError('f_t_cert', tCertRejected
       ? 'This certificate was rejected. Upload a valid Hifz/Tajweed Ijazah to continue, or uncheck the box above to skip adding one.'
       : 'Please upload your Hifz/Tajweed Ijazah certificate, or uncheck the box above to skip adding one.');
