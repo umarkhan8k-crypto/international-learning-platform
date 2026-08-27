@@ -179,7 +179,10 @@ function buildSearchDropdown(mount, opts){
     search.value = '';
     renderList('');
     search.focus();
-    document.addEventListener('click', outsideClick);
+    /* Defer attaching this listener to the next tick — otherwise the same
+       click that opened the panel (still bubbling up to document) would
+       immediately be seen as an "outside click" and close it again right away. */
+    setTimeout(() => { document.addEventListener('click', outsideClick); }, 0);
     window.addEventListener('scroll', onScrollOrResize, true);
     window.addEventListener('resize', onScrollOrResize);
   }
