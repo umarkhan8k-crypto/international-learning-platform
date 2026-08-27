@@ -497,19 +497,26 @@ function initUploadBox(mount, opts={}){
 }
 
 /* Best-effort only: tries English, Arabic and Urdu OCR to look for Hifz/Tajweed keywords.
-   This can never *guarantee* a certificate is genuine — that always needs a human (admin) to check. */
+   This can never *guarantee* a certificate is genuine — that always needs a human (admin) to check.
+   A hard timeout is used on each attempt so a slow/blocked connection can never leave the
+   check spinning forever — it falls back and eventually gives up cleanly instead. */
+function ocrWithTimeout(promise, timeoutMs){
+  return Promise.race([
+    promise,
+    new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+}
 async function ocrExtractText(url){
+  if (typeof Tesseract === 'undefined') return null;
   try{
-    if (typeof Tesseract === 'undefined') return null;
-    const result = await Tesseract.recognize(url, 'eng+ara+urd');
-    return (result.data.text || '').toLowerCase();
-  }catch(err){
-    try{
-      if (typeof Tesseract === 'undefined') return null;
-      const result = await Tesseract.recognize(url, 'eng');
-      return (result.data.text || '').toLowerCase();
-    }catch(e2){ return null; }
-  }
+    const result = await ocrWithTimeout(Tesseract.recognize(url, 'eng+ara+urd'), 15000);
+    if (result && result.data) return (result.data.text || '').toLowerCase();
+  }catch(err){ /* fall through to a lighter, faster attempt below */ }
+  try{
+    const result = await ocrWithTimeout(Tesseract.recognize(url, 'eng'), 12000);
+    if (result && result.data) return (result.data.text || '').toLowerCase();
+  }catch(e2){ /* could not verify — caller treats this as "unable to confirm", not "rejected" */ }
+  return null;
 }
 
 function getAudioDuration(file){
