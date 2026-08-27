@@ -21,14 +21,57 @@
 
       <div style="flex:1;min-width:0;">
         <div id="dashHead"></div>
-        <div class="card" style="margin-top:1.5rem;">
-          <h3 id="reqTitle">Your trial requests</h3>
-          <div id="reqList"><p style="color:var(--ink-2);">Loading...</p></div>
+
+        <!-- Tutor-only: summary stat cards -->
+        <div id="statCards" class="stat-cards" style="display:none;"></div>
+
+        <!-- Tutor-only: two-column mid section (pending requests + next class) -->
+        <div id="midSection" class="dash-grid-2" style="display:none;">
+          <div class="card">
+            <h3 id="reqTitle">Pending trial requests</h3>
+            <div id="reqList"><p style="color:var(--ink-2);">Loading...</p></div>
+          </div>
+          <div class="card">
+            <h3>Next upcoming class</h3>
+            <div id="nextClass"><p style="color:var(--ink-2);">Loading...</p></div>
+          </div>
         </div>
+
+        <!-- Student view: original simple requests list -->
+        <div id="studentReqCard" class="card" style="margin-top:1.5rem;display:none;">
+          <h3 id="studentReqTitle">Your trial requests</h3>
+          <div id="studentReqList"><p style="color:var(--ink-2);">Loading...</p></div>
+        </div>
+
+        <!-- Tutor-only: my students list -->
+        <div id="studentsCard" class="card" style="margin-top:1.5rem;display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <h3 style="margin:0;">My students</h3>
+          </div>
+          <div id="studentsListInline"><p style="color:var(--ink-2);">Loading...</p></div>
+        </div>
+
+        <!-- Tutor-only: recent activity -->
+        <div id="activityCard" class="card" style="margin-top:1.5rem;display:none;">
+          <h3>Recent activity</h3>
+          <div id="activityList"><p style="color:var(--ink-2);">Loading...</p></div>
+        </div>
+
       </div>
     </div>
   </div>
 </section>
+
+<!-- Student profile / list modal (tutor only) -->
+<div id="studentModalOverlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeStudentModal();">
+  <div class="modal-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h3 id="modalTitle" style="margin:0;">Students</h3>
+      <button class="btn ghost small" onclick="closeStudentModal()">Close</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
 
 <div id="footer"></div>
 <script src="app.js"></script>
@@ -45,59 +88,233 @@
       </div>
     </div>`;
 
-  const reqList = document.getElementById('reqList');
   const isTutor = user.role === 'TUTOR';
+  let tutorProfile = null; // filled in for the earnings estimate
+  let studentsIndex = [];  // built once per load, used by the modal
 
   function statusBadge(s){ return `<span class="badge-status ${(s||'').toLowerCase()}">${s}</span>`; }
+  function studentName(r){ return (r.student.firstName||'') + ' ' + (r.student.lastName||''); }
+  function tutorName(r){ return (r.tutor.firstName||'') + ' ' + (r.tutor.lastName||''); }
+  function studentKey(r){ return r.student.id || r.student.email || studentName(r); }
 
-  document.getElementById('reqTitle').textContent = isTutor ? 'Trial requests from students' : 'Your trial requests';
-
-  async function loadRequests(){
-    try{
-      const data = await fetchMyTrialRequests();
-      const requests = data.requests || [];
-      if (!requests.length){
-        reqList.innerHTML = isTutor
-          ? '<p style="color:var(--ink-2);">No requests yet.</p>'
-          : '<p style="color:var(--ink-2);">You haven\'t booked a trial yet.</p>';
-        return;
-      }
-      reqList.innerHTML = requests.map(r=>{
-        const otherName = isTutor
-          ? (r.student.firstName + ' ' + r.student.lastName)
-          : (r.tutor.firstName + ' ' + r.tutor.lastName);
-        const actions = (isTutor && r.status === 'PENDING')
-          ? `<div style="display:flex;gap:8px;margin-top:6px;">
+  function renderRequestActions(r){
+    if (!(isTutor && r.status === 'PENDING')) return '';
+    return `<div style="display:flex;gap:8px;margin-top:6px;">
                <button class="btn primary small" onclick="respond('${r.id}','ACCEPTED')">Accept</button>
                <button class="btn ghost small" onclick="respond('${r.id}','DECLINED')">Decline</button>
-             </div>`
-          : '';
-        return `
+             </div>`;
+  }
+
+  function requestItemHtml(r){
+    const otherName = isTutor ? studentName(r) : tutorName(r);
+    return `
+      <div class="req-item">
+        <div>
+          <strong>${otherName}</strong><br>
+          <span style="font-size:.82rem;color:var(--ink-2);">Preferred: ${r.preferredTime||'—'}</span>
+          ${renderRequestActions(r)}
+        </div>
+        ${statusBadge(r.status)}
+      </div>`;
+  }
+
+  /* ---------- tutor dashboard ---------- */
+
+  function estimatedEarnings(acceptedRequests){
+    const price = tutorProfile && Number(tutorProfile.price) ? Number(tutorProfile.price) : 0;
+    return price * acceptedRequests.length;
+  }
+
+  function buildStudentsIndex(acceptedRequests){
+    const map = new Map();
+    acceptedRequests.forEach(r=>{
+      const key = studentKey(r);
+      if (!map.has(key)) map.set(key, { student: r.student, requests: [] });
+      map.get(key).requests.push(r);
+    });
+    return Array.from(map.values());
+  }
+
+  function renderStatCards(students, acceptedRequests){
+    const el = document.getElementById('statCards');
+    el.style.display = 'grid';
+    el.innerHTML = `
+      <div class="stat-card" onclick="openStudentsModal()" role="button" tabindex="0">
+        <div class="stat-num">${students.length}</div>
+        <div class="stat-label">Total Students</div>
+        <div class="stat-sub">Tap to view all →</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">${acceptedRequests.length}</div>
+        <div class="stat-label">Total Classes</div>
+        <div class="stat-sub">Accepted trial bookings</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">$${estimatedEarnings(acceptedRequests).toFixed(2)}</div>
+        <div class="stat-label">Estimated Earnings</div>
+        <div class="stat-sub">Based on your listed price</div>
+      </div>
+    `;
+  }
+
+  function renderNextClass(acceptedRequests){
+    const el = document.getElementById('nextClass');
+    if (!acceptedRequests.length){
+      el.innerHTML = '<p style="color:var(--ink-2);">No upcoming classes yet.</p>';
+      return;
+    }
+    const latest = acceptedRequests[acceptedRequests.length - 1];
+    el.innerHTML = `
+      <p style="margin:0 0 4px;"><strong>${studentName(latest)}</strong></p>
+      <p style="margin:0;color:var(--ink-2);font-size:.88rem;">Preferred time: ${latest.preferredTime || 'Not specified yet — message your student to confirm.'}</p>
+    `;
+  }
+
+  function renderStudentsInline(students){
+    const el = document.getElementById('studentsListInline');
+    if (!students.length){
+      el.innerHTML = '<p style="color:var(--ink-2);">No students yet — accept a trial request to get started.</p>';
+      return;
+    }
+    el.innerHTML = students.map((s, idx) => `
+      <div class="req-item" style="cursor:pointer;" onclick="openStudentDetail(${idx})">
+        <div>
+          <strong>${(s.student.firstName||'')+' '+(s.student.lastName||'')}</strong><br>
+          <span style="font-size:.82rem;color:var(--ink-2);">${s.requests.length} class${s.requests.length===1?'':'es'} booked</span>
+        </div>
+        <span style="color:var(--ink-2);">›</span>
+      </div>
+    `).join('');
+  }
+
+  function renderActivity(allRequests){
+    const el = document.getElementById('activityList');
+    if (!allRequests.length){
+      el.innerHTML = '<p style="color:var(--ink-2);">Nothing yet.</p>';
+      return;
+    }
+    const recent = allRequests.slice(-6).reverse();
+    el.innerHTML = recent.map(r=>{
+      const verb = r.status === 'PENDING' ? 'New trial request from'
+                 : r.status === 'ACCEPTED' ? 'You accepted'
+                 : r.status === 'DECLINED' ? 'You declined'
+                 : 'Update for';
+      return `<p style="margin:0 0 8px;font-size:.9rem;"><strong>${verb}</strong> ${studentName(r)}${r.preferredTime ? ' — preferred ' + r.preferredTime : ''}</p>`;
+    }).join('');
+  }
+
+  function openStudentsModal(){
+    document.getElementById('modalTitle').textContent = 'My students';
+    const body = document.getElementById('modalBody');
+    if (!studentsIndex.length){
+      body.innerHTML = '<p style="color:var(--ink-2);">No students yet.</p>';
+    } else {
+      body.innerHTML = studentsIndex.map((s, idx) => `
+        <div class="req-item" style="cursor:pointer;" onclick="openStudentDetail(${idx})">
+          <div>
+            <strong>${(s.student.firstName||'')+' '+(s.student.lastName||'')}</strong><br>
+            <span style="font-size:.82rem;color:var(--ink-2);">${s.requests.length} class${s.requests.length===1?'':'es'} booked</span>
+          </div>
+          <span style="color:var(--ink-2);">›</span>
+        </div>
+      `).join('');
+    }
+    document.getElementById('studentModalOverlay').style.display = 'flex';
+  }
+
+  function openStudentDetail(idx){
+    const s = studentsIndex[idx];
+    if (!s) return;
+    document.getElementById('modalTitle').textContent = (s.student.firstName||'')+' '+(s.student.lastName||'');
+    const body = document.getElementById('modalBody');
+    body.innerHTML = `
+      <p style="margin:0 0 4px;color:var(--ink-2);font-size:.85rem;">EMAIL</p>
+      <p style="margin:0 0 14px;">${s.student.email || '—'}</p>
+      <p style="margin:0 0 8px;color:var(--ink-2);font-size:.85rem;">CLASSES / REQUESTS</p>
+      ${s.requests.map(r => `
         <div class="req-item">
           <div>
-            <strong>${otherName}</strong><br>
-            <span style="font-size:.82rem;color:var(--ink-2);">Preferred: ${r.preferredTime||'—'}</span>
-            ${actions}
+            <span style="font-size:.9rem;">Preferred: ${r.preferredTime || '—'}</span>
           </div>
           ${statusBadge(r.status)}
-        </div>`;
-      }).join('');
+        </div>
+      `).join('')}
+      <button class="btn ghost small" style="margin-top:12px;" onclick="openStudentsModal()">← Back to all students</button>
+    `;
+  }
+
+  function closeStudentModal(){
+    document.getElementById('studentModalOverlay').style.display = 'none';
+  }
+  window.openStudentsModal = openStudentsModal;
+  window.openStudentDetail = openStudentDetail;
+  window.closeStudentModal = closeStudentModal;
+
+  function renderTutorDashboard(requests){
+    document.getElementById('statCards').style.display = 'grid';
+    document.getElementById('midSection').style.display = 'grid';
+    document.getElementById('studentsCard').style.display = 'block';
+    document.getElementById('activityCard').style.display = 'block';
+
+    const accepted = requests.filter(r => r.status === 'ACCEPTED');
+    const pending = requests.filter(r => r.status === 'PENDING');
+    studentsIndex = buildStudentsIndex(accepted);
+
+    renderStatCards(studentsIndex, accepted);
+    renderNextClass(accepted);
+    renderStudentsInline(studentsIndex);
+    renderActivity(requests);
+
+    document.getElementById('reqTitle').textContent = 'Pending trial requests';
+    const reqList = document.getElementById('reqList');
+    reqList.innerHTML = pending.length
+      ? pending.map(requestItemHtml).join('')
+      : '<p style="color:var(--ink-2);">No pending requests.</p>';
+  }
+
+  /* ---------- student dashboard (unchanged behaviour) ---------- */
+
+  function renderStudentDashboard(requests){
+    document.getElementById('studentReqCard').style.display = 'block';
+    const el = document.getElementById('studentReqList');
+    el.innerHTML = requests.length
+      ? requests.map(requestItemHtml).join('')
+      : '<p style="color:var(--ink-2);">You haven\'t booked a trial yet.</p>';
+  }
+
+  /* ---------- shared load + respond ---------- */
+
+  async function loadDashboard(){
+    try{
+      if (isTutor){
+        try{ tutorProfile = await getMyProfile(); }catch(e){ tutorProfile = null; }
+      }
+      const data = await fetchMyTrialRequests();
+      const requests = data.requests || [];
+      if (isTutor){
+        renderTutorDashboard(requests);
+      } else {
+        renderStudentDashboard(requests);
+      }
     }catch(err){
-      reqList.innerHTML = `<p style="color:var(--rose);">Could not load requests: ${err.message}</p>`;
+      const target = isTutor ? document.getElementById('reqList') : document.getElementById('studentReqList');
+      if (isTutor){ document.getElementById('midSection').style.display = 'grid'; }
+      else { document.getElementById('studentReqCard').style.display = 'block'; }
+      target.innerHTML = `<p style="color:var(--rose);">Could not load requests: ${err.message}</p>`;
     }
   }
 
   async function respond(id, status){
     try{
       await updateTrialRequestStatus(id, status);
-      loadRequests();
+      loadDashboard();
     }catch(err){
       alert(err.message);
     }
   }
   window.respond = respond;
 
-  loadRequests();
+  loadDashboard();
 </script>
 <style>
   .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
@@ -112,9 +329,37 @@
   .side-link:hover{ background:#f4f4f4; }
   .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
 
+  .stat-cards{
+    display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:1.5rem;
+  }
+  .stat-card{
+    background:#fff; border:1px solid var(--line,#eee); border-radius:10px; padding:16px;
+    cursor:default;
+  }
+  .stat-card[onclick]{ cursor:pointer; transition:box-shadow .15s, transform .15s; }
+  .stat-card[onclick]:hover{ box-shadow:0 4px 14px rgba(0,0,0,.08); transform:translateY(-1px); }
+  .stat-num{ font-size:1.6rem; font-weight:700; color:var(--ink,#111); line-height:1.1; }
+  .stat-label{ font-size:.85rem; color:var(--ink-2,#666); margin-top:2px; }
+  .stat-sub{ font-size:.75rem; color:var(--ink-2,#999); margin-top:6px; }
+
+  .dash-grid-2{
+    display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:1.5rem;
+  }
+
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-box{
+    background:#fff; border-radius:12px; padding:20px; width:100%; max-width:420px;
+    max-height:80vh; overflow:auto;
+  }
+
   @media (max-width:720px){
     .profile-layout{ flex-direction:column; }
     .profile-sidebar{ width:100%; flex-direction:row; }
+    .stat-cards{ grid-template-columns:1fr; }
+    .dash-grid-2{ grid-template-columns:1fr; }
   }
 </style>
 </body>
