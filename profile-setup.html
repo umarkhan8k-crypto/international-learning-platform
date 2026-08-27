@@ -85,8 +85,14 @@
 <div class="field" id="f_t_availability"><label>Availability</label><input type="text" id="t_availability" placeholder="e.g. Weekday evenings (GMT+5)"><div class="field-error"></div></div>
 
 <div class="section-label">Certification &amp; experience</div>
-<div class="field" id="f_t_cert">
-<label>Hifz / Tajweed Ijazah certification <span style="font-weight:400;">(optional)</span></label>
+<div class="field" id="f_t_certToggle">
+<label class="check-row" style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;">
+<input type="checkbox" id="t_certToggle" style="width:16px;height:16px;flex-shrink:0;">
+<span>I'd like to add my Hifz / Tajweed Ijazah certificate <span style="font-weight:400;">(optional — turn this on only if you want to add one; if you turn it on, uploading a valid certificate becomes required to create your profile)</span></span>
+</label>
+</div>
+<div class="field" id="f_t_cert" style="display:none;">
+<label>Hifz / Tajweed Ijazah certification</label>
 <div class="cert-type-row">
 <select id="t_certType">
 <option value="">Select certificate type</option>
@@ -94,11 +100,12 @@
 <option value="Tajweed Ijazah">Tajweed Ijazah</option>
 </select>
 </div>
-<div class="hint" style="margin:-4px 0 8px;">Only original Hifz or Tajweed Ijazah certificates are accepted — in any language (English, Arabic, Urdu etc). Anything else will be rejected on manual review, even if uploaded here.</div>
+<div class="hint" style="margin:-4px 0 8px;">Only original Hifz or Tajweed Ijazah certificates are accepted — in any country or language (English, Arabic, Urdu etc). It is checked automatically right after you upload it.</div>
 <div id="t_certWarning" style="color:#c0392b;font-weight:700;margin:-2px 0 10px;font-size:.85rem;">⚠ Only ORIGINAL Hifz or Tajweed Ijazah certificates are accepted (any language). Any other picture/document will be automatically rejected and will not be uploaded.</div>
 <div id="t_certMount"></div>
 <div class="field-error"></div>
 </div>
+
 <div class="field" id="f_t_exp"><label>Years of experience</label><input type="text" id="t_exp" placeholder="e.g. 5 years"><div class="field-error"></div></div>
 <div class="field" id="f_t_audio">
 <label>Recitation sample (audio)</label>
@@ -318,6 +325,13 @@ async function runCertCheck(rawUrl){
 document.getElementById('t_certType').addEventListener('change', ()=>{
   if (tCertRawUrl){ runCertCheck(tCertRawUrl); }
 });
+
+const tCertToggle = document.getElementById('t_certToggle');
+const tCertField = document.getElementById('f_t_cert');
+tCertToggle.addEventListener('change', ()=>{
+  tCertField.style.display = tCertToggle.checked ? 'block' : 'none';
+  clearError('f_t_cert');
+});
 const tAudioBox = initUploadBox(document.getElementById('t_audioMount'), {
   accept:'audio/*', kind:'audio', label:'Tap to upload a short recitation sample',
   onChange: async (dataUrl, file) => {
@@ -369,7 +383,7 @@ getMyProfile().then(profile => {
   if (profile.platform) document.getElementById('t_platform').value = profile.platform;
   if (profile.availability) document.getElementById('t_availability').value = profile.availability;
   if (profile.certificationType) document.getElementById('t_certType').value = profile.certificationType;
-  if (profile.certificationUrl){ tCert = profile.certificationUrl; tCertRawUrl = profile.certificationUrl; tCertRejected = false; tCertBox.setExisting(profile.certificationUrl); }
+  if (profile.certificationUrl){ tCert = profile.certificationUrl; tCertRawUrl = profile.certificationUrl; tCertRejected = false; tCertToggle.checked = true; tCertField.style.display = 'block'; tCertBox.setExisting(profile.certificationUrl); }
   if (profile.experience) document.getElementById('t_exp').value = profile.experience;
   if (profile.audioSampleUrl){ tAudio = profile.audioSampleUrl; tAudioBox.setExisting(profile.audioSampleUrl); }
   if (profile.qualification) document.getElementById('t_qualification').value = profile.qualification;
@@ -395,7 +409,18 @@ ok = requireSelect('t_platform','f_t_platform','a class platform') && ok;
 ok = requireText('t_availability','f_t_availability','Availability') && ok;
 ok = requireText('t_exp','f_t_exp','Years of experience') && ok;
 if (!tAudio){ setError('f_t_audio','Please upload a recitation sample.'); ok = false; } else { clearError('f_t_audio'); }
-if (tCertRejected){ setError('f_t_cert', 'This certificate was rejected. Upload a valid Hifz/Tajweed Ijazah, or remove it to continue without one.'); ok = false; } else { clearError('f_t_cert'); }
+if (tCertToggle.checked){
+  if (!tCert || tCertRejected){
+    setError('f_t_cert', tCertRejected
+      ? 'This certificate was rejected. Upload a valid Hifz/Tajweed Ijazah to continue, or uncheck the box above to skip adding one.'
+      : 'Please upload your Hifz/Tajweed Ijazah certificate, or uncheck the box above to skip adding one.');
+    ok = false;
+  } else {
+    clearError('f_t_cert');
+  }
+} else {
+  clearError('f_t_cert');
+}
 ok = requireText('t_qualification','f_t_qualification','Qualification') && ok;
 ok = requireText('t_bio','f_t_bio','Bio') && ok;
 const priceVal = document.getElementById('t_price').value;
@@ -419,8 +444,8 @@ subjects,
 ageGroups: document.querySelector('input[name="t_ageGroups"]:checked').value,
 platform: document.getElementById('t_platform').value,
 availability: document.getElementById('t_availability').value.trim(),
-certification: tCert,
-certificationType: document.getElementById('t_certType').value,
+certification: tCertToggle.checked ? tCert : '',
+certificationType: tCertToggle.checked ? document.getElementById('t_certType').value : '',
 experience: document.getElementById('t_exp').value.trim(),
 audioSample: tAudio,
 qualification: document.getElementById('t_qualification').value.trim(),
