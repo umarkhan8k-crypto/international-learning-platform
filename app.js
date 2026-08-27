@@ -154,8 +154,9 @@ function buildSearchDropdown(mount, opts){
   function positionPanel(){
     const margin = 8;
     const rect = box.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
+    const vv = window.visualViewport;
+    const vw = vv ? vv.width : window.innerWidth;
+    const vh = vv ? vv.height : window.innerHeight;
     const panelWidth = Math.max(180, Math.min(rect.width, vw - margin * 2));
     let left = rect.left;
     if (left + panelWidth > vw - margin) left = vw - margin - panelWidth;
@@ -183,16 +184,30 @@ function buildSearchDropdown(mount, opts){
        click that opened the panel (still bubbling up to document) would
        immediately be seen as an "outside click" and close it again right away. */
     setTimeout(() => { document.addEventListener('click', outsideClick); }, 0);
+    /* Reposition (not close) on scroll/resize. On mobile, tapping the search
+       box opens the on-screen keyboard, which fires a 'resize' event — closing
+       the panel here would make it look like the dropdown "closes itself"
+       right after opening. Repositioning keeps it open and correctly placed. */
     window.addEventListener('scroll', onScrollOrResize, true);
     window.addEventListener('resize', onScrollOrResize);
+    if (window.visualViewport){
+      window.visualViewport.addEventListener('resize', onScrollOrResize);
+      window.visualViewport.addEventListener('scroll', onScrollOrResize);
+    }
   }
   function closePanel(){
     panel.style.display = 'none';
     document.removeEventListener('click', outsideClick);
     window.removeEventListener('scroll', onScrollOrResize, true);
     window.removeEventListener('resize', onScrollOrResize);
+    if (window.visualViewport){
+      window.visualViewport.removeEventListener('resize', onScrollOrResize);
+      window.visualViewport.removeEventListener('scroll', onScrollOrResize);
+    }
   }
-  function onScrollOrResize(){ closePanel(); }
+  function onScrollOrResize(){
+    if (panel.style.display === 'block') positionPanel();
+  }
   function outsideClick(e){ if (!wrap.contains(e.target) && !panel.contains(e.target)) closePanel(); }
 
   box.addEventListener('click', () => { panel.style.display === 'block' ? closePanel() : openPanel(); });
