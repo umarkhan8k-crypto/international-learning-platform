@@ -37,6 +37,13 @@
           </div>
         </div>
 
+        <!-- Tutor-only: ongoing (accepted, not yet completed) classes -->
+        <div id="ongoingCard" class="card" style="margin-top:1.5rem;display:none;">
+          <h3>Ongoing classes</h3>
+          <p style="margin:.2em 0 10px;color:var(--ink-2);font-size:.85rem;">Mark a class as completed once you've taught it — this updates your Total Classes and earnings.</p>
+          <div id="ongoingList"><p style="color:var(--ink-2);">Loading...</p></div>
+        </div>
+
         <!-- Student view: original simple requests list -->
         <div id="studentReqCard" class="card" style="margin-top:1.5rem;display:none;">
           <h3 id="studentReqTitle">Your trial requests</h3>
@@ -98,11 +105,19 @@
   function studentKey(r){ return r.student.id || r.student.email || studentName(r); }
 
   function renderRequestActions(r){
-    if (!(isTutor && r.status === 'PENDING')) return '';
-    return `<div style="display:flex;gap:8px;margin-top:6px;">
-               <button class="btn primary small" onclick="respond('${r.id}','ACCEPTED')">Accept</button>
-               <button class="btn ghost small" onclick="respond('${r.id}','DECLINED')">Decline</button>
-             </div>`;
+    if (!isTutor) return '';
+    if (r.status === 'PENDING'){
+      return `<div style="display:flex;gap:8px;margin-top:6px;">
+                 <button class="btn primary small" onclick="respond('${r.id}','ACCEPTED')">Accept</button>
+                 <button class="btn ghost small" onclick="respond('${r.id}','DECLINED')">Decline</button>
+               </div>`;
+    }
+    if (r.status === 'ACCEPTED'){
+      return `<div style="margin-top:6px;">
+                 <button class="btn primary small" onclick="respond('${r.id}','COMPLETED')">Mark as completed</button>
+               </div>`;
+    }
+    return '';
   }
 
   function requestItemHtml(r){
@@ -119,15 +134,16 @@
   }
 
   /* ---------- tutor dashboard ---------- */
+  /* Requests come back from the API newest-first (orderBy createdAt desc),
+     so requests[0] is always the most recent — no need to reverse anything. */
 
-  function estimatedEarnings(acceptedRequests){
-    const price = tutorProfile && Number(tutorProfile.price) ? Number(tutorProfile.price) : 0;
-    return price * acceptedRequests.length;
-  }
-
-  function buildStudentsIndex(acceptedRequests){
+  function buildStudentsIndex(requests){
+    // A student "belongs" to the tutor once a request has been accepted at
+    // least once — whether it's still ongoing (ACCEPTED) or already taught
+    // (COMPLETED). Declined/pending-only requests don't count as a student yet.
+    const relevant = requests.filter(r => r.status === 'ACCEPTED' || r.status === 'COMPLETED');
     const map = new Map();
-    acceptedRequests.forEach(r=>{
+    relevant.forEach(r=>{
       const key = studentKey(r);
       if (!map.has(key)) map.set(key, { student: r.student, requests: [] });
       map.get(key).requests.push(r);
@@ -135,9 +151,11 @@
     return Array.from(map.values());
   }
 
-  function renderStatCards(students, acceptedRequests){
+  function renderStatCards(students, profile){
     const el = document.getElementById('statCards');
     el.style.display = 'grid';
+    const totalClasses = profile ? Number(profile.totalClasses || 0) : 0;
+    const totalEarnings = profile ? Number(profile.totalEarnings || 0) : 0;
     el.innerHTML = `
       <div class="stat-card" onclick="openStudentsModal()" role="button" tabindex="0">
         <div class="stat-num">${students.length}</div>
@@ -145,14 +163,14 @@
         <div class="stat-sub">Tap to view all →</div>
       </div>
       <div class="stat-card">
-        <div class="stat-num">${acceptedRequests.length}</div>
+        <div class="stat-num">${totalClasses}</div>
         <div class="stat-label">Total Classes</div>
-        <div class="stat-sub">Accepted trial bookings</div>
+        <div class="stat-sub">Classes marked completed</div>
       </div>
       <div class="stat-card">
-        <div class="stat-num">$${estimatedEarnings(acceptedRequests).toFixed(2)}</div>
-        <div class="stat-label">Estimated Earnings</div>
-        <div class="stat-sub">Based on your listed price</div>
+        <div class="stat-num">$${totalEarnings.toFixed(2)}</div>
+        <div class="stat-label">Total Earnings</div>
+        <div class="stat-sub">From completed classes</div>
       </div>
     `;
   }
@@ -163,11 +181,20 @@
       el.innerHTML = '<p style="color:var(--ink-2);">No upcoming classes yet.</p>';
       return;
     }
-    const latest = acceptedRequests[acceptedRequests.length - 1];
+    const latest = acceptedRequests[0];
     el.innerHTML = `
       <p style="margin:0 0 4px;"><strong>${studentName(latest)}</strong></p>
       <p style="margin:0;color:var(--ink-2);font-size:.88rem;">Preferred time: ${latest.preferredTime || 'Not specified yet — message your student to confirm.'}</p>
     `;
+  }
+
+  function renderOngoing(acceptedRequests){
+    const el = document.getElementById('ongoingList');
+    if (!acceptedRequests.length){
+      el.innerHTML = '<p style="color:var(--ink-2);">No ongoing classes right now.</p>';
+      return;
+    }
+    el.innerHTML = acceptedRequests.map(requestItemHtml).join('');
   }
 
   function renderStudentsInline(students){
@@ -193,11 +220,12 @@
       el.innerHTML = '<p style="color:var(--ink-2);">Nothing yet.</p>';
       return;
     }
-    const recent = allRequests.slice(-6).reverse();
+    const recent = allRequests.slice(0, 6); // already newest-first from the API
     el.innerHTML = recent.map(r=>{
       const verb = r.status === 'PENDING' ? 'New trial request from'
                  : r.status === 'ACCEPTED' ? 'You accepted'
                  : r.status === 'DECLINED' ? 'You declined'
+                 : r.status === 'COMPLETED' ? 'You completed a class with'
                  : 'Update for';
       return `<p style="margin:0 0 8px;font-size:.9rem;"><strong>${verb}</strong> ${studentName(r)}${r.preferredTime ? ' — preferred ' + r.preferredTime : ''}</p>`;
     }).join('');
@@ -235,6 +263,7 @@
         <div class="req-item">
           <div>
             <span style="font-size:.9rem;">Preferred: ${r.preferredTime || '—'}</span>
+            ${r.status === 'ACCEPTED' ? `<div style="margin-top:6px;"><button class="btn primary small" onclick="respond('${r.id}','COMPLETED')">Mark as completed</button></div>` : ''}
           </div>
           ${statusBadge(r.status)}
         </div>
@@ -250,18 +279,20 @@
   window.openStudentDetail = openStudentDetail;
   window.closeStudentModal = closeStudentModal;
 
-  function renderTutorDashboard(requests){
+  function renderTutorDashboard(requests, profile){
     document.getElementById('statCards').style.display = 'grid';
     document.getElementById('midSection').style.display = 'grid';
+    document.getElementById('ongoingCard').style.display = 'block';
     document.getElementById('studentsCard').style.display = 'block';
     document.getElementById('activityCard').style.display = 'block';
 
     const accepted = requests.filter(r => r.status === 'ACCEPTED');
     const pending = requests.filter(r => r.status === 'PENDING');
-    studentsIndex = buildStudentsIndex(accepted);
+    studentsIndex = buildStudentsIndex(requests);
 
-    renderStatCards(studentsIndex, accepted);
+    renderStatCards(studentsIndex, profile);
     renderNextClass(accepted);
+    renderOngoing(accepted);
     renderStudentsInline(studentsIndex);
     renderActivity(requests);
 
@@ -292,7 +323,7 @@
       const data = await fetchMyTrialRequests();
       const requests = data.requests || [];
       if (isTutor){
-        renderTutorDashboard(requests);
+        renderTutorDashboard(requests, tutorProfile);
       } else {
         renderStudentDashboard(requests);
       }
