@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Find Students — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .lang-row{ font-size:.78rem; color:var(--ink-2,#888); margin-top:6px; }
+</style>
+</head>
+<body data-page="Find Students">
+<div id="nav"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="eyebrow" style="justify-content:center;">Our Students</div>
+    <h1>Find students to teach</h1>
+    <p style="color:var(--ink-2);">Browse student profiles and send a trial request.</p>
+  </div>
+</section>
+
+<section style="padding-top:40px;">
+  <div class="container">
+    <div class="filter-bar">
+      <input type="text" id="searchInput" placeholder="Search by name, country or language">
+      <input type="text" id="countryFilter" placeholder="Country">
+      <select id="ageGroupFilter">
+        <option value="">Any age group</option>
+        <option>Kids</option><option>Teens</option><option>Adults</option>
+      </select>
+    </div>
+    <div class="grid-3" id="studentGrid"></div>
+    <p id="emptyState" style="display:none;text-align:center;color:var(--ink-2);padding:40px 0;">No students match your filters yet — try clearing a filter.</p>
+    <p id="loadingState" style="text-align:center;color:var(--ink-2);padding:40px 0;">Loading students...</p>
+  </div>
+</section>
+
+<div class="modal-backdrop" id="reqModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3 id="modalStudentName">Send a trial request</h3>
+    <p class="form-sub" id="modalStudentMeta" style="margin-bottom:1.2em;"></p>
+    <div id="modalMsg" class="msg"></div>
+    <form id="reqForm">
+      <div class="field"><label>Proposed day &amp; time</label><input type="text" id="reqTime" placeholder="e.g. Weekdays, evening (GMT+5)" required></div>
+      <button class="btn primary block" type="submit">Send request</button>
+    </form>
+  </div>
+</div>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=students.html'; }
+  if (user.role !== 'TUTOR'){ location.href = 'dashboard.html'; }
+
+  const grid = document.getElementById('studentGrid');
+  const empty = document.getElementById('emptyState');
+  const loading = document.getElementById('loadingState');
+  let activeStudent = null;
+
+  function avatarHtml(name, pictureUrl){
+    return pictureUrl
+      ? `<img src="${pictureUrl}" class="avatar" style="object-fit:cover;">`
+      : `<div class="avatar">${initials(name)}</div>`;
+  }
+
+  async function render(){
+    loading.style.display = 'block';
+    empty.style.display = 'none';
+    grid.innerHTML = '';
+    try{
+      const params = new URLSearchParams();
+      const search = document.getElementById('searchInput').value.trim();
+      const country = document.getElementById('countryFilter').value.trim();
+      const ageGroup = document.getElementById('ageGroupFilter').value;
+      if (search) params.set('search', search);
+      if (country) params.set('country', country);
+      if (ageGroup) params.set('ageGroup', ageGroup);
+
+      const data = await fetchStudents(Object.fromEntries(params));
+      const students = data.students || [];
+      loading.style.display = 'none';
+      empty.style.display = students.length ? 'none' : 'block';
+      grid.innerHTML = students.map(s=>{
+        const name = s.user.firstName + ' ' + s.user.lastName;
+        return `
+        <div class="card tutor-card">
+          <a href="public-profile.html?id=${s.userId}&role=student" style="text-decoration:none;color:inherit;">
+            <div class="tutor-top">
+              ${avatarHtml(name, s.pictureUrl)}
+              <div>
+                <div class="tutor-name">${name}</div>
+                <div class="tutor-meta">${s.country||''} · ${s.ageGroup||''}</div>
+              </div>
+            </div>
+          </a>
+          <p style="font-size:.87rem;">${s.bio||''}</p>
+          <div class="pill-row">
+            ${(s.interests||[]).map(i=>`<span class="pill">${i}</span>`).join('')}
+          </div>
+          ${(s.languages||[]).length ? `<div class="lang-row">${(s.languages||[]).join(' · ')}</div>` : ''}
+          <div class="tutor-bottom">
+            <a href="public-profile.html?id=${s.userId}&role=student" class="btn ghost small">View profile</a>
+            <button class="btn gold small" onclick="openModal('${s.userId}')">Request</button>
+          </div>
+        </div>`;
+      }).join('');
+      window.__studentCache = students;
+    }catch(err){
+      loading.style.display = 'none';
+      grid.innerHTML = `<p style="color:var(--rose);text-align:center;">Could not load students: ${err.message}</p>`;
+    }
+  }
+
+  ['searchInput','countryFilter','ageGroupFilter'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', render);
+  });
+  render();
+
+  function openModal(userId){
+    activeStudent = (window.__studentCache||[]).find(s=>s.userId===userId);
+    if (!activeStudent) return;
+    const name = activeStudent.user.firstName + ' ' + activeStudent.user.lastName;
+    document.getElementById('modalStudentName').textContent = 'Send a trial request to ' + name;
+    document.getElementById('modalStudentMeta').textContent = (activeStudent.interests||[]).join(', ');
+    document.getElementById('modalMsg').style.display = 'none';
+    document.getElementById('reqModal').classList.add('open');
+  }
+  function closeModal(){ document.getElementById('reqModal').classList.remove('open'); }
+
+  document.getElementById('reqForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const msg = document.getElementById('modalMsg');
+    const submitBtn = e.target.querySelector('button[type=submit]');
+    submitBtn.disabled = true;
+    try{
+      await createTutorRequestApi({ studentId: activeStudent.userId, preferredTime: document.getElementById('reqTime').value });
+      msg.className = 'msg success';
+      msg.textContent = 'Request sent! Track its status from your Requests page.';
+      msg.style.display = 'block';
+      document.getElementById('reqForm').reset();
+      setTimeout(closeModal, 1600);
+    }catch(err){
+      msg.className = 'msg error';
+      msg.textContent = err.message;
+      msg.style.display = 'block';
+    }
+    submitBtn.disabled = false;
+  });
+</script>
+</body>
+</html>
