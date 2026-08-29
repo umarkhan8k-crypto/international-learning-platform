@@ -43,10 +43,15 @@
   }
 
   function sidebar(active){
+    const isTutor = user.role === 'TUTOR';
+    const findLink = isTutor
+      ? `<a href="students.html" class="side-link ${active==='find'?'active':''}">Find Students</a>`
+      : `<a href="tutors.html" class="side-link ${active==='find'?'active':''}">Find a Tutor</a>`;
     return `
       <aside class="profile-sidebar">
         <a href="dashboard.html" class="side-link ${active==='dashboard'?'active':''}">Dashboard</a>
         <a href="profile.html" class="side-link ${active==='profile'?'active':''}">Profile</a>
+        ${findLink}
         <a href="requests.html" class="side-link ${active==='requests'?'active':''}">Requests</a>
         <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
       </aside>`;
