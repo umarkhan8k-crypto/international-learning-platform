@@ -21,7 +21,7 @@
     <h3 id="modalTitle"></h3>
     <div id="modalMsg" class="msg"></div>
     <form id="actionForm">
-      <div class="field"><label>Preferred day &amp; time</label><input type="text" id="actionTime" placeholder="e.g. Weekdays, evening (GMT+5)" required></div>
+      <div class="field" id="actionFieldWrap"></div>
       <button class="btn primary block" type="submit">Send</button>
     </form>
   </div>
@@ -35,6 +35,23 @@
   const targetRole = (params.get('role') || 'tutor').toLowerCase();
   const viewer = currentUser();
 
+  let myProfile = null;
+  if (viewer && viewer.role === 'TUTOR'){
+    getMyProfile().then(p => { myProfile = p; }).catch(() => {});
+  }
+
+  function buildGreeting(student){
+    const studentFirstName = student.user.firstName;
+    const interest = (student.interests && student.interests[0]) || 'Quran studies';
+    const tutorName = viewer.firstName;
+    let commonLangLine = '';
+    if (myProfile && myProfile.languages && student.languages){
+      const shared = myProfile.languages.filter(l => student.languages.includes(l));
+      if (shared.length) commonLangLine = ` I also speak ${shared[0]}, so we can communicate comfortably.`;
+    }
+    return `Assalam o Alaikum ${studentFirstName}, kaise hain aap? I'm ${tutorName}, and I saw you're interested in learning ${interest}. I'd love to offer you a free trial class so we can get started.${commonLangLine} Let me know if you're interested!`;
+  }
+
   function field(label, value){
     if (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)) return '';
     const display = Array.isArray(value) ? value.join(', ') : value;
@@ -44,6 +61,8 @@
     if (value === undefined || value === null || value === '') return '';
     return `<div class="field field-full"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
   }
+
+  let loadedProfile = null;
 
   async function load(){
     const wrap = document.getElementById('profileWrap');
@@ -56,6 +75,7 @@
       const profile = isTutor
         ? await getPublicTutorProfile(targetId)
         : await getPublicStudentProfile(targetId);
+      loadedProfile = profile;
       const name = profile.user.firstName + ' ' + profile.user.lastName;
 
       let picHtml = profile.pictureUrl
@@ -82,7 +102,7 @@
         : isTutor && viewer.role === 'STUDENT'
         ? `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Book a trial</button>`
         : !isTutor && viewer.role === 'TUTOR'
-        ? `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Send a trial request</button>`
+        ? `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Send a message</button>`
         : '';
 
       wrap.innerHTML = `
@@ -106,7 +126,16 @@
   }
 
   function openModal(name){
-    document.getElementById('modalTitle').textContent = 'Message ' + name;
+    const isTutorTarget = targetRole === 'tutor';
+    const fieldWrap = document.getElementById('actionFieldWrap');
+    if (isTutorTarget){
+      document.getElementById('modalTitle').textContent = 'Book a trial with ' + name;
+      fieldWrap.innerHTML = `<label>Preferred day &amp; time</label><input type="text" id="actionTime" placeholder="e.g. Weekdays, evening (GMT+5)" required>`;
+    } else {
+      document.getElementById('modalTitle').textContent = 'Send a message to ' + name;
+      fieldWrap.innerHTML = `<label>Your message</label><textarea id="actionTime" rows="5" required style="width:100%;padding:10px 12px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:.92rem;"></textarea>`;
+      document.getElementById('actionTime').value = buildGreeting(loadedProfile);
+    }
     document.getElementById('modalMsg').style.display = 'none';
     document.getElementById('actionModal').classList.add('open');
   }
