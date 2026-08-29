@@ -88,23 +88,31 @@
       ? r.student.firstName + ' ' + r.student.lastName
       : r.tutor.firstName + ' ' + r.tutor.lastName;
 
-    const actions = (isTutor && r.status === 'PENDING')
-      ? `<div style="display:flex;gap:8px;margin-top:10px;">
+    // The receiver (whoever did NOT send the request) gets Accept/Decline.
+    // The tutor alone can mark an accepted lesson as completed.
+    const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
+    const iSentIt = !iAmReceiver;
+
+    let actions = '';
+    if (r.status === 'PENDING' && iAmReceiver){
+      actions = `<div style="display:flex;gap:8px;margin-top:10px;">
            <button class="btn primary small" data-accept="${r.id}">Accept</button>
            <button class="btn ghost small" data-decline="${r.id}">Decline</button>
-         </div>`
-      : (isTutor && r.status === 'ACCEPTED')
-      ? `<div style="margin-top:10px;">
+         </div>`;
+    } else if (r.status === 'PENDING' && iSentIt){
+      actions = `<p style="color:var(--ink-2);font-size:.85rem;margin-top:8px;">Waiting for ${otherName.split(' ')[0]} to respond.</p>`;
+    } else if (isTutor && r.status === 'ACCEPTED'){
+      actions = `<div style="margin-top:10px;">
            <button class="btn primary small" data-complete="${r.id}">Mark class as completed</button>
-         </div>`
-      : '';
+         </div>`;
+    }
 
     return `
       <div class="request-card" data-id="${r.id}" style="border:1px solid var(--line,#eee);border-radius:10px;padding:16px;margin-bottom:14px;background:#fff;">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
           <div>
             <strong>${otherName}</strong>
-            <div style="color:var(--ink-2);font-size:.85rem;">Preferred: ${r.preferredTime}</div>
+            <div style="color:var(--ink-2);font-size:.85rem;">Preferred: ${r.preferredTime}${r.initiatedBy === 'TUTOR' ? ' · sent by tutor' : ''}</div>
           </div>
           ${statusBadge(r.status)}
         </div>
@@ -112,6 +120,18 @@
         <button class="btn ghost small toggle-chat" data-id="${r.id}" style="margin-top:10px;">Message ${otherName.split(' ')[0]}</button>
         <div class="thread" data-thread="${r.id}" style="display:none;margin-top:12px;"></div>
       </div>`;
+  }
+
+  function sidebar(active){
+    const findLink = isTutor
+      ? `<a href="students.html" class="side-link ${active==='find'?'active':''}">Find Students</a>`
+      : `<a href="tutors.html" class="side-link ${active==='find'?'active':''}">Find a Tutor</a>`;
+    return `
+      <a href="dashboard.html" class="side-link">Dashboard</a>
+      <a href="profile.html" class="side-link">Profile</a>
+      ${findLink}
+      <a href="requests.html" class="side-link active">Requests</a>
+      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>`;
   }
 
   async function load(){
@@ -122,13 +142,10 @@
       wrap.innerHTML = `
         <div class="profile-layout">
           <aside class="profile-sidebar">
-            <a href="dashboard.html" class="side-link">Dashboard</a>
-            <a href="profile.html" class="side-link">Profile</a>
-            <a href="requests.html" class="side-link active">Requests</a>
-            <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
+            ${sidebar('requests')}
           </aside>
           <div class="profile-card" style="flex:1;">
-            <h2 style="margin-top:0;">${isTutor ? 'Trial requests from students' : 'Your trial requests'}</h2>
+            <h2 style="margin-top:0;">Your trial requests</h2>
             ${requests.length ? requests.map(requestCard).join('') : '<p style="color:var(--ink-2);">No requests yet.</p>'}
           </div>
         </div>`;
