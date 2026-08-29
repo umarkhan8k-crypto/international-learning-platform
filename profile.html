@@ -53,8 +53,23 @@
         <a href="profile.html" class="side-link ${active==='profile'?'active':''}">Profile</a>
         ${findLink}
         <a href="requests.html" class="side-link ${active==='requests'?'active':''}">Requests</a>
+        <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;" onclick="handleEnableNotifications(this)">🔔 Enable notifications</button>
         <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
       </aside>`;
+  }
+
+  async function handleEnableNotifications(btn){
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Enabling...';
+    try{
+      await enablePushNotifications();
+      btn.textContent = '✓ Notifications enabled';
+    }catch(err){
+      alert(err.message);
+      btn.textContent = original;
+      btn.disabled = false;
+    }
   }
 
   async function load(){
