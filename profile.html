@@ -52,22 +52,62 @@
         <a href="dashboard.html" class="side-link ${active==='dashboard'?'active':''}">Dashboard</a>
         <a href="profile.html" class="side-link ${active==='profile'?'active':''}">Profile</a>
         ${findLink}
-        <a href="requests.html" class="side-link ${active==='requests'?'active':''}">Requests</a>
-        <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;" onclick="handleEnableNotifications(this)">🔔 Enable notifications</button>
+        <a href="requests.html" class="side-link ${active==='requests'?'active':''}" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Requests</span>
+          <span id="requestsBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+        </a>
+        <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);" onclick="handleEnableNotifications(this)"><span id="notifBell">🔔</span> Enable notifications</button>
         <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
       </aside>`;
   }
 
+  // Checks whether this browser already has an active push subscription, and
+  // colors the bell green + updates the button text if so — so the state is
+  // correct on page load, not just right after the button is clicked.
+  async function refreshNotifButtonState(){
+    const btn = document.getElementById('notifBtn');
+    const bell = document.getElementById('notifBell');
+    if (!btn || !bell) return;
+    try{
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = registration ? await registration.pushManager.getSubscription() : null;
+      if (subscription && Notification.permission === 'granted'){
+        bell.textContent = '🟢';
+        btn.lastChild.textContent = ' Notifications on';
+      }
+    }catch(err){ /* ignore — button just stays in its default state */ }
+  }
+
+  // Counts how many trial requests are waiting on THIS user's response
+  // (i.e. requests they received, not ones they sent) and shows that count
+  // as a small badge next to "Requests" in the sidebar.
+  async function refreshRequestsBadge(){
+    const badge = document.getElementById('requestsBadge');
+    if (!badge) return;
+    try{
+      const isTutor = user.role === 'TUTOR';
+      const { requests } = await fetchMyTrialRequests();
+      const pendingForMe = requests.filter(r => {
+        const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
+        return r.status === 'PENDING' && iAmReceiver;
+      }).length;
+      if (pendingForMe > 0){
+        badge.textContent = pendingForMe;
+        badge.style.display = 'inline-block';
+      }
+    }catch(err){ /* ignore — badge just stays hidden */ }
+  }
+
   async function handleEnableNotifications(btn){
     btn.disabled = true;
-    const original = btn.textContent;
-    btn.textContent = 'Enabling...';
+    const bell = document.getElementById('notifBell');
     try{
       await enablePushNotifications();
-      btn.textContent = '✓ Notifications enabled';
+      if (bell) bell.textContent = '🟢';
+      btn.lastChild.textContent = ' Notifications enabled';
     }catch(err){
       alert(err.message);
-      btn.textContent = original;
       btn.disabled = false;
     }
   }
@@ -97,6 +137,8 @@
               <a href="profile-setup.html" class="btn primary small">Complete your profile</a>
             </div>
           </div>`;
+        refreshNotifButtonState();
+        refreshRequestsBadge();
         return;
       }
 
@@ -177,6 +219,8 @@
             <a href="profile-setup.html" class="btn primary small" style="margin-top:20px;">Edit profile</a>
           </div>
         </div>`;
+      refreshNotifButtonState();
+      refreshRequestsBadge();
     }catch(err){
       wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load your profile: ${err.message}</p>`;
     }
