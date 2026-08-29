@@ -75,12 +75,6 @@ function buildSearchDropdown(mount, opts){
   const caret = document.createElement('span'); caret.textContent = '▾'; caret.style.color = 'var(--ink-2,#888)';
   box.appendChild(boxLabel); box.appendChild(caret);
 
-  /* Panel is positioned with fixed positioning and its coordinates are computed
-     in JS (see openPanel) relative to the viewport. This makes it immune to
-     any ancestor's overflow/width/transform quirks, so it can never render
-     off-screen to the right (or left) — it is always clamped to fit within
-     the visible viewport, regardless of screen size or where the field sits
-     on the page. */
   const panel = document.createElement('div');
   panel.style.cssText = 'display:none;position:fixed;z-index:9999;background:#fff;border:1px solid var(--line,#ccc);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);overflow:auto;box-sizing:border-box;';
   const searchWrap = document.createElement('div');
@@ -93,7 +87,7 @@ function buildSearchDropdown(mount, opts){
   panel.appendChild(searchWrap); panel.appendChild(list);
 
   wrap.appendChild(box);
-  document.body.appendChild(panel); /* appended to body so it can never be clipped by a parent's overflow */
+  document.body.appendChild(panel);
   mount.appendChild(wrap);
 
   let selected = opts.single ? '' : [];
@@ -164,7 +158,6 @@ function buildSearchDropdown(mount, opts){
     let top = rect.bottom + 4;
     let maxHeight = Math.min(260, vh - top - margin);
     if (maxHeight < 140){
-      /* not enough room below — open the panel above the box instead */
       top = Math.max(margin, rect.top - 4 - Math.min(260, rect.top - margin * 2));
       maxHeight = Math.min(260, rect.top - margin - 4);
     }
@@ -180,14 +173,7 @@ function buildSearchDropdown(mount, opts){
     search.value = '';
     renderList('');
     search.focus();
-    /* Defer attaching this listener to the next tick — otherwise the same
-       click that opened the panel (still bubbling up to document) would
-       immediately be seen as an "outside click" and close it again right away. */
     setTimeout(() => { document.addEventListener('click', outsideClick); }, 0);
-    /* Reposition (not close) on scroll/resize. On mobile, tapping the search
-       box opens the on-screen keyboard, which fires a 'resize' event — closing
-       the panel here would make it look like the dropdown "closes itself"
-       right after opening. Repositioning keeps it open and correctly placed. */
     window.addEventListener('scroll', onScrollOrResize, true);
     window.addEventListener('resize', onScrollOrResize);
     if (window.visualViewport){
@@ -286,14 +272,35 @@ function initials(name){
   return name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
 }
 
-/* ---------- tutors / trial requests / profile / stats ---------- */
+/* ---------- tutors / students / trial requests / profile / stats ---------- */
 async function fetchTutors(query = {}){
   const params = new URLSearchParams(query).toString();
   return apiRequest('/tutors' + (params ? '?' + params : ''));
 }
 
+// NEW: mirrors fetchTutors, for the "Find Students" page
+async function fetchStudents(query = {}){
+  const params = new URLSearchParams(query).toString();
+  return apiRequest('/students' + (params ? '?' + params : ''));
+}
+
+// NEW: read a single tutor's or student's public profile (used by public-profile.html)
+async function getPublicTutorProfile(userId){
+  const data = await apiRequest('/tutors/' + userId);
+  return data.tutor;
+}
+async function getPublicStudentProfile(userId){
+  const data = await apiRequest('/students/' + userId);
+  return data.student;
+}
+
 async function createTrialRequestApi({ tutorId, preferredTime }){
   return apiRequest('/trial-requests', { method: 'POST', body: JSON.stringify({ tutorId, preferredTime }) });
+}
+
+// NEW: mirrors createTrialRequestApi — a tutor sending a trial request to a student
+async function createTutorRequestApi({ studentId, preferredTime }){
+  return apiRequest('/trial-requests/from-tutor', { method: 'POST', body: JSON.stringify({ studentId, preferredTime }) });
 }
 
 async function fetchMyTrialRequests(){
