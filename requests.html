@@ -112,7 +112,7 @@
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
           <div>
             <strong>${otherName}</strong>
-            <div style="color:var(--ink-2);font-size:.85rem;">Preferred: ${r.preferredTime}${r.initiatedBy === 'TUTOR' ? ' · sent by tutor' : ''}</div>
+            <div style="color:var(--ink-2);font-size:.85rem;">${r.initiatedBy === 'TUTOR' ? 'Message: ' + r.preferredTime : 'Preferred: ' + r.preferredTime}</div>
           </div>
           ${statusBadge(r.status)}
         </div>
