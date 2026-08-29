@@ -323,6 +323,40 @@ async function fetchStats(){
   return apiRequest('/stats');
 }
 
+/* ---------- push notifications ---------- */
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+async function enablePushNotifications(){
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)){
+    throw new Error('Push notifications are not supported in this browser.');
+  }
+  const registration = await navigator.serviceWorker.register('sw.js');
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted'){
+    throw new Error('Notification permission was not granted.');
+  }
+  const { publicKey } = await apiRequest('/push/vapid-public-key');
+  if (!publicKey){
+    throw new Error('Notifications are not configured on the server yet.');
+  }
+  let subscription = await registration.pushManager.getSubscription();
+  if (!subscription){
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+  }
+  await apiRequest('/push/subscribe', { method: 'POST', body: JSON.stringify(subscription.toJSON()) });
+  return true;
+}
+
 async function saveProfile(_email, data){
   const payload = { ...data };
   if ('picture' in payload){ payload.pictureUrl = payload.picture; delete payload.picture; }
