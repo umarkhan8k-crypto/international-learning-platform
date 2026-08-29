@@ -33,6 +33,7 @@
         <option value="">Any gender</option>
         <option>Male</option><option>Female</option>
       </select>
+      <input type="text" id="countryFilter" placeholder="Country">
     </div>
     <div class="grid-3" id="tutorGrid"></div>
     <p id="emptyState" style="display:none;text-align:center;color:var(--ink-2);padding:40px 0;">No tutors match your filters yet — try clearing a filter.</p>
@@ -85,9 +86,11 @@
       const search = document.getElementById('searchInput').value.trim();
       const subj = document.getElementById('subjectFilter').value;
       const gen = document.getElementById('genderFilter').value;
+      const country = document.getElementById('countryFilter').value.trim();
       if (search) q.search = search;
       if (subj) q.subject = subj;
       if (gen) q.gender = gen;
+      if (country) q.country = country;
 
       const data = await fetchTutors(q);
       const tutors = data.tutors || [];
@@ -97,13 +100,15 @@
         const name = t.user.firstName + ' ' + t.user.lastName;
         return `
         <div class="card tutor-card">
-          <div class="tutor-top">
-            ${avatarHtml(name, t.pictureUrl)}
-            <div>
-              <div class="tutor-name">${name}</div>
-              <div class="tutor-meta">${t.country||''} · ${t.experience||''}</div>
+          <a href="public-profile.html?id=${t.userId}&role=tutor" style="text-decoration:none;color:inherit;">
+            <div class="tutor-top">
+              ${avatarHtml(name, t.pictureUrl)}
+              <div>
+                <div class="tutor-name">${name}</div>
+                <div class="tutor-meta">${t.country||''} · ${t.experience||''}</div>
+              </div>
             </div>
-          </div>
+          </a>
           <div class="stars">${starRow(t.rating)} <span style="color:var(--ink-2);font-weight:500;">${t.rating||'New'} (${t.reviewCount||0})</span></div>
           <div style="font-size:.78rem;color:var(--ink-2,#888);margin-top:2px;">${t.totalClasses||0} classes taught</div>
           <p style="font-size:.87rem;">${t.bio||''}</p>
@@ -118,13 +123,17 @@
         </div>`;
       }).join('');
       window.__tutorCache = tutors;
+
+      if (params.get('book')){
+        openModal(params.get('book'));
+      }
     }catch(err){
       loading.style.display = 'none';
       grid.innerHTML = `<p style="color:var(--rose);text-align:center;">Could not load tutors: ${err.message}</p>`;
     }
   }
 
-  ['searchInput','subjectFilter','genderFilter'].forEach(id=>{
+  ['searchInput','subjectFilter','genderFilter','countryFilter'].forEach(id=>{
     document.getElementById(id).addEventListener('input', render);
   });
   render();
