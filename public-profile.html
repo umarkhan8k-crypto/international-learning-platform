@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="">
+<div id="nav"></div>
+
+<section style="padding:40px 0;">
+  <div class="container">
+    <div id="profileWrap"><p style="color:var(--ink-2);">Loading profile...</p></div>
+  </div>
+</section>
+
+<div class="modal-backdrop" id="actionModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <h3 id="modalTitle"></h3>
+    <div id="modalMsg" class="msg"></div>
+    <form id="actionForm">
+      <div class="field"><label>Preferred day &amp; time</label><input type="text" id="actionTime" placeholder="e.g. Weekdays, evening (GMT+5)" required></div>
+      <button class="btn primary block" type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const targetId = params.get('id');
+  const targetRole = (params.get('role') || 'tutor').toLowerCase();
+  const viewer = currentUser();
+
+  function field(label, value){
+    if (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)) return '';
+    const display = Array.isArray(value) ? value.join(', ') : value;
+    return `<div class="field"><span class="field-label">${label}</span><span class="field-value">${display}</span></div>`;
+  }
+  function fieldFull(label, value){
+    if (value === undefined || value === null || value === '') return '';
+    return `<div class="field field-full"><span class="field-label">${label}</span><span class="field-value">${value}</span></div>`;
+  }
+
+  async function load(){
+    const wrap = document.getElementById('profileWrap');
+    if (!targetId){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">No profile specified.</p>`;
+      return;
+    }
+    try{
+      const isTutor = targetRole === 'tutor';
+      const profile = isTutor
+        ? await getPublicTutorProfile(targetId)
+        : await getPublicStudentProfile(targetId);
+      const name = profile.user.firstName + ' ' + profile.user.lastName;
+
+      let picHtml = profile.pictureUrl
+        ? `<img src="${profile.pictureUrl}" class="profile-avatar-img">`
+        : `<div class="avatar avatar-lg">${initials(name)}</div>`;
+
+      const fieldsHtml = isTutor
+        ? `${field('Country', profile.country)}
+           ${field('Subjects', profile.subjects)}
+           ${field('Class platform', profile.platform)}
+           ${field('Availability', profile.availability)}
+           ${field('Experience', profile.experience)}
+           ${field('Qualification', profile.qualification)}
+           ${field('Languages', profile.languages)}
+           ${field('Price', profile.price ? '$' + profile.price + ' / class' : '')}`
+        : `${field('Country', profile.country)}
+           ${field('Age group', profile.ageGroup)}
+           ${field('Wants to learn', profile.interests)}
+           ${field('Languages', profile.languages)}
+           ${field('Availability', profile.availability)}`;
+
+      const actionBtn = !viewer
+        ? `<a href="login.html" class="btn primary small" style="margin-top:20px;">Log in to contact</a>`
+        : isTutor && viewer.role === 'STUDENT'
+        ? `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Book a trial</button>`
+        : !isTutor && viewer.role === 'TUTOR'
+        ? `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Send a trial request</button>`
+        : '';
+
+      wrap.innerHTML = `
+        <div class="profile-card" style="max-width:640px;margin:0 auto;">
+          <div class="profile-header">
+            ${picHtml}
+            <div>
+              <h2 style="margin:0 0 6px;">${name}</h2>
+              <span class="role-badge">${isTutor ? 'TUTOR' : 'STUDENT'}</span>
+            </div>
+          </div>
+          <div class="field-grid">
+            ${fieldsHtml}
+            ${fieldFull(isTutor ? 'Bio' : 'About', profile.bio)}
+          </div>
+          ${actionBtn}
+        </div>`;
+    }catch(err){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load this profile: ${err.message}</p>`;
+    }
+  }
+
+  function openModal(name){
+    document.getElementById('modalTitle').textContent = 'Message ' + name;
+    document.getElementById('modalMsg').style.display = 'none';
+    document.getElementById('actionModal').classList.add('open');
+  }
+  function closeModal(){ document.getElementById('actionModal').classList.remove('open'); }
+
+  document.getElementById('actionForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const msg = document.getElementById('modalMsg');
+    const submitBtn = e.target.querySelector('button[type=submit]');
+    submitBtn.disabled = true;
+    try{
+      const isTutor = targetRole === 'tutor';
+      if (isTutor){
+        await createTrialRequestApi({ tutorId: targetId, preferredTime: document.getElementById('actionTime').value });
+      } else {
+        await createTutorRequestApi({ studentId: targetId, preferredTime: document.getElementById('actionTime').value });
+      }
+      msg.className = 'msg success';
+      msg.textContent = 'Sent! Track its status from your Requests page.';
+      msg.style.display = 'block';
+      document.getElementById('actionForm').reset();
+      setTimeout(closeModal, 1600);
+    }catch(err){
+      msg.className = 'msg error';
+      msg.textContent = err.message;
+      msg.style.display = 'block';
+    }
+    submitBtn.disabled = false;
+  });
+
+  load();
+</script>
+<style>
+  .profile-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:24px; background:#fff; }
+  .profile-header{ display:flex; align-items:center; gap:16px; margin-bottom:20px; }
+  .profile-avatar-img{ width:64px; height:64px; border-radius:50%; object-fit:cover; }
+  .role-badge{ display:inline-block; background:var(--green,#1e7d43); color:#fff; font-size:.7rem; font-weight:700; letter-spacing:.04em; padding:2px 10px; border-radius:999px; }
+  .field-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px 32px; border-top:1px solid var(--line,#eee); padding-top:18px; }
+  .field{ display:flex; flex-direction:column; gap:4px; }
+  .field-full{ grid-column:1 / -1; display:flex; flex-direction:column; gap:4px; }
+  .field-label{ font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2,#888); }
+  .field-value{ font-size:.95rem; color:var(--ink,#222); }
+  @media (max-width:720px){ .field-grid{ grid-template-columns:1fr; } }
+</style>
+</body>
+</html>
