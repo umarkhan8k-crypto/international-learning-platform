@@ -39,11 +39,11 @@
 <div class="modal-backdrop" id="reqModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal()">×</button>
-    <h3 id="modalStudentName">Send a trial request</h3>
+    <h3 id="modalStudentName">Send a message</h3>
     <p class="form-sub" id="modalStudentMeta" style="margin-bottom:1.2em;"></p>
     <div id="modalMsg" class="msg"></div>
     <form id="reqForm">
-      <div class="field"><label>Proposed day &amp; time</label><input type="text" id="reqTime" placeholder="e.g. Weekdays, evening (GMT+5)" required></div>
+      <div class="field"><label>Your message</label><textarea id="reqTime" rows="5" required style="width:100%;padding:10px 12px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;font-family:inherit;font-size:.92rem;"></textarea></div>
       <button class="btn primary block" type="submit">Send request</button>
     </form>
   </div>
@@ -55,6 +55,21 @@
   const user = currentUser();
   if (!user){ location.href = 'login.html?next=students.html'; }
   if (user.role !== 'TUTOR'){ location.href = 'dashboard.html'; }
+
+  let myProfile = null;
+  getMyProfile().then(p => { myProfile = p; }).catch(() => {});
+
+  function buildGreeting(student){
+    const studentFirstName = student.user.firstName;
+    const interest = (student.interests && student.interests[0]) || 'Quran studies';
+    const tutorName = user.firstName;
+    let commonLangLine = '';
+    if (myProfile && myProfile.languages && student.languages){
+      const shared = myProfile.languages.filter(l => student.languages.includes(l));
+      if (shared.length) commonLangLine = ` I also speak ${shared[0]}, so we can communicate comfortably.`;
+    }
+    return `Assalam o Alaikum ${studentFirstName}, kaise hain aap? I'm ${tutorName}, and I saw you're interested in learning ${interest}. I'd love to offer you a free trial class so we can get started.${commonLangLine} Let me know if you're interested!`;
+  }
 
   const grid = document.getElementById('studentGrid');
   const empty = document.getElementById('emptyState');
@@ -124,9 +139,10 @@
     activeStudent = (window.__studentCache||[]).find(s=>s.userId===userId);
     if (!activeStudent) return;
     const name = activeStudent.user.firstName + ' ' + activeStudent.user.lastName;
-    document.getElementById('modalStudentName').textContent = 'Send a trial request to ' + name;
+    document.getElementById('modalStudentName').textContent = 'Send a message to ' + name;
     document.getElementById('modalStudentMeta').textContent = (activeStudent.interests||[]).join(', ');
     document.getElementById('modalMsg').style.display = 'none';
+    document.getElementById('reqTime').value = buildGreeting(activeStudent);
     document.getElementById('reqModal').classList.add('open');
   }
   function closeModal(){ document.getElementById('reqModal').classList.remove('open'); }
