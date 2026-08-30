@@ -2,6 +2,34 @@
 
 const API_BASE = 'https://ilp-backend-production-77a4.up.railway.app/api';
 
+/* ---------- sound cues (generated tones — no audio files needed) ---------- */
+let __audioCtx = null;
+function playTone(freqs, stepDuration = 0.14){
+  try{
+    if (!__audioCtx) __audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (__audioCtx.state === 'suspended') __audioCtx.resume();
+    const now = __audioCtx.currentTime;
+    freqs.forEach((freq, i) => {
+      const osc = __audioCtx.createOscillator();
+      const gain = __audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const start = now + i * stepDuration;
+      const end = start + stepDuration;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, end);
+      osc.connect(gain); gain.connect(__audioCtx.destination);
+      osc.start(start); osc.stop(end);
+    });
+  }catch(err){ /* audio not supported/blocked — silently skip */ }
+}
+function playMessageSound(){ playTone([880, 1108]); }          // message sent / received
+function playNotificationSound(){ playTone([660, 880, 1108]); } // generic new-notification chime
+function playAcceptSound(){ playTone([523, 659, 784]); }        // request accepted / completed
+function playDeclineSound(){ playTone([392, 311]); }            // request declined
+function playRequestSentSound(){ playTone([784, 988]); }        // trial request successfully sent
+
 const ORNAMENT = `<svg class="ornament" viewBox="0 0 100 100"><path d="M50 2 L61 39 L98 39 L68 61 L79 98 L50 75 L21 98 L32 61 L2 39 L39 39 Z"/></svg>`;
 
 /* ---------- countries (name, iso2, dial code) ---------- */
@@ -727,6 +755,18 @@ function initSidebarWidgets(){
   refreshNotifButtonState();
   refreshRequestsBadge();
   refreshMessagesBadge();
+}
+
+// If sw.js posts a message back to the page when a push notification
+// arrives (see sw.js), play a chime here — this only fires while this
+// tab is open; when the tab/site is closed the OS's own notification
+// sound plays instead.
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'push-received'){
+      playNotificationSound();
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
