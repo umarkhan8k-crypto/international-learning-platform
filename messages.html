@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="">
+<div id="nav"></div>
+
+<section style="padding:40px 0;">
+  <div class="container">
+    <div id="msgWrap"><p style="color:var(--ink-2);">Loading your messages...</p></div>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=messages.html'; }
+
+  function avatarHtml(name, pictureUrl){
+    return pictureUrl
+      ? `<img src="${pictureUrl}" class="avatar" style="object-fit:cover;">`
+      : `<div class="avatar">${initials(name)}</div>`;
+  }
+
+  // Small "Aug 30, 5:42 PM" / "Today, 5:42 PM" style stamp for the top of a card.
+  function fmtStamp(iso){
+    try{
+      const d = new Date(iso);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+      const isYesterday = d.toDateString() === yesterday.toDateString();
+      const time = d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+      if (sameDay) return `Today, ${time}`;
+      if (isYesterday) return `Yesterday, ${time}`;
+      return `${d.toLocaleDateString(undefined, { month:'short', day:'numeric' })}, ${time}`;
+    }catch(e){ return ''; }
+  }
+
+  function conversationCard(c){
+    const name = (c.other.firstName||'') + ' ' + (c.other.lastName||'');
+    const roleLabel = c.otherRole === 'TUTOR' ? 'Tutor' : 'Student';
+    const profile = c.otherProfile || {};
+    const metaParts = [profile.country, (profile.languages||[]).join(' · ')].filter(Boolean);
+    const mine = c.lastMessage.senderId === user.id;
+    const previewPrefix = mine ? 'You: ' : '';
+
+    return `
+      <div class="conv-card" data-req="${c.requestId}">
+        <div class="conv-top">
+          ${avatarHtml(name, profile.pictureUrl)}
+          <div class="conv-who">
+            <div class="conv-name-row">
+              <strong>${name}</strong>
+              <span class="role-chip">${roleLabel}</span>
+            </div>
+            ${metaParts.length ? `<div class="conv-meta">${metaParts.join(' · ')}</div>` : ''}
+          </div>
+          <div class="conv-stamp">${fmtStamp(c.lastMessage.createdAt)}</div>
+          ${c.unreadCount > 0 ? `<span class="conv-badge">${c.unreadCount}</span>` : ''}
+        </div>
+
+        <div class="conv-preview-wrap">
+          <p class="conv-preview">${previewPrefix}${c.lastMessage.content}</p>
+          <span class="conv-readmore">Read more</span>
+        </div>
+
+        <div class="conv-thread" style="display:none;"></div>
+      </div>`;
+  }
+
+  function statusOfPreview(card){
+    const preview = card.querySelector('.conv-preview');
+    const readmore = card.querySelector('.conv-readmore');
+    // Only show "Read more" if the text is actually being clipped by the 2-line limit.
+    if (preview.scrollHeight > preview.clientHeight + 2){
+      readmore.style.display = 'inline-block';
+    } else {
+      readmore.style.display = 'none';
+    }
+  }
+
+  async function loadThreadInto(requestId, threadEl){
+    threadEl.innerHTML = '<p style="color:var(--ink-2);font-size:.85rem;padding:12px 0;">Loading messages...</p>';
+    try{
+      const { messages } = await apiRequest('/messages/thread/' + requestId);
+      renderThread(requestId, threadEl, messages);
+      // Reading the thread just cleared unread on the server — reflect that locally.
+      const card = threadEl.closest('.conv-card');
+      const badge = card.querySelector('.conv-badge');
+      if (badge) badge.remove();
+      refreshMessagesBadge();
+    }catch(err){
+      threadEl.innerHTML = `<p style="color:var(--rose,#c0392b);font-size:.85rem;">${err.message}</p>`;
+    }
+  }
+
+  function renderThread(requestId, threadEl, messages){
+    const msgsHtml = messages.length
+      ? messages.map(m => {
+          const mine = m.senderId === user.id;
+          return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:6px;">
+            <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--green,#1e7d43)':'#f0f0f0'};color:${mine?'#fff':'#222'};font-size:.88rem;">
+              ${m.content}
+            </div>
+          </div>`;
+        }).join('')
+      : '<p style="color:var(--ink-2);font-size:.85rem;">No messages yet — say hello.</p>';
+
+    threadEl.innerHTML = `
+      <div class="chat-scroll" style="max-height:260px;overflow-y:auto;padding:10px;border:1px solid var(--line,#eee);border-radius:8px;margin:10px 0;">
+        ${msgsHtml}
+      </div>
+      <form class="chat-form" style="display:flex;gap:8px;">
+        <input type="text" placeholder="Write a message..." required style="flex:1;padding:8px 12px;border:1px solid var(--line,#ccc);border-radius:8px;">
+        <button type="submit" class="btn primary small">Send</button>
+      </form>`;
+
+    const scrollBox = threadEl.querySelector('.chat-scroll');
+    scrollBox.scrollTop = scrollBox.scrollHeight;
+
+    threadEl.querySelector('.chat-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = e.target.querySelector('input');
+      const content = input.value.trim();
+      if (!content) return;
+      input.disabled = true;
+      try{
+        await apiRequest('/messages/thread/' + requestId, { method:'POST', body: JSON.stringify({ content }) });
+        input.value = '';
+        playMessageSound();
+        await loadThreadInto(requestId, threadEl);
+      }catch(err){
+        alert(err.message);
+      }finally{
+        input.disabled = false;
+      }
+    });
+  }
+
+  function wireCard(card){
+    const requestId = card.dataset.req;
+    const threadEl = card.querySelector('.conv-thread');
+    const previewWrap = card.querySelector('.conv-preview-wrap');
+
+    function openThread(){
+      if (threadEl.style.display === 'block') return;
+      previewWrap.style.display = 'none';
+      threadEl.style.display = 'block';
+      if (!threadEl.dataset.loaded){
+        threadEl.dataset.loaded = '1';
+        loadThreadInto(requestId, threadEl);
+      }
+    }
+
+    card.querySelector('.conv-readmore').addEventListener('click', (e) => { e.stopPropagation(); openThread(); });
+    card.querySelector('.conv-top').addEventListener('click', openThread);
+    previewWrap.addEventListener('click', openThread);
+  }
+
+  async function load(){
+    const wrap = document.getElementById('msgWrap');
+    try{
+      const { conversations } = await fetchConversations();
+
+      wrap.innerHTML = `
+        <div class="profile-layout">
+          ${sidebarHtml('messages')}
+          <div class="profile-card" style="flex:1;min-width:0;">
+            <h2 style="margin-top:0;">Messages</h2>
+            <div id="convList">
+              ${conversations.length
+                ? conversations.map(conversationCard).join('')
+                : '<p style="color:var(--ink-2);">No conversations yet — messages you send or receive will show up here.</p>'}
+            </div>
+          </div>
+        </div>`;
+      initSidebarWidgets();
+
+      wrap.querySelectorAll('.conv-card').forEach(card => {
+        wireCard(card);
+        statusOfPreview(card);
+      });
+    }catch(err){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load your messages: ${err.message}</p>`;
+    }
+  }
+
+  load();
+</script>
+<style>
+  .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
+  .profile-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:24px; background:#fff; }
+  @media (max-width:720px){ .profile-layout{ flex-direction:column; } }
+
+  #convList{ display:flex; flex-direction:column; gap:14px; margin-top:14px; }
+
+  .conv-card{
+    border:1px solid var(--line,#eee); border-radius:12px; padding:14px; background:#fff;
+    transition:box-shadow .15s;
+  }
+  .conv-card:hover{ box-shadow:0 4px 14px rgba(0,0,0,.06); }
+
+  .conv-top{
+    display:flex; align-items:flex-start; gap:12px; cursor:pointer; position:relative;
+  }
+  .conv-who{ flex:1; min-width:0; }
+  .conv-name-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .role-chip{
+    font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
+    background:var(--brand-light,#e8f5ec); color:var(--brand-dark,#0b2318);
+    padding:2px 8px; border-radius:999px;
+  }
+  .conv-meta{ font-size:.78rem; color:var(--ink-2,#888); margin-top:2px; }
+  .conv-stamp{ font-size:.72rem; color:var(--ink-2,#999); white-space:nowrap; flex-shrink:0; }
+  .conv-badge{
+    position:absolute; top:-4px; right:-4px;
+    background:#c0392b; color:#fff; font-size:.7rem; font-weight:700;
+    border-radius:999px; padding:2px 7px; min-width:18px; text-align:center;
+  }
+
+  .conv-preview-wrap{ margin-top:8px; cursor:pointer; }
+  .conv-preview{
+    margin:0; font-size:.88rem; color:var(--ink-2,#555);
+    display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+  }
+  .conv-readmore{
+    display:none; font-size:.8rem; font-weight:600; color:var(--brand,#0e7c4a);
+    margin-top:4px;
+  }
+
+  .conv-thread{ border-top:1px solid var(--line,#eee); margin-top:10px; padding-top:4px; }
+</style>
+</body>
+</html>
