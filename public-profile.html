@@ -64,6 +64,30 @@
 
   let loadedProfile = null;
 
+  async function alreadyHasRequestWith(otherUserId, isTutor){
+    try{
+      const { requests } = await fetchMyTrialRequests();
+      const idsToCheck = isTutor ? requests.map(r => r.tutorId) : requests.map(r => r.studentId);
+      return idsToCheck.includes(otherUserId);
+    }catch(err){ return false; }
+  }
+
+  async function buildActionButton(isTutor, name){
+    if (isTutor && viewer.role === 'STUDENT'){
+      const already = await alreadyHasRequestWith(targetId, true);
+      return already
+        ? `<button class="btn ghost small" disabled style="margin-top:20px;opacity:.6;cursor:not-allowed;">✓ Already requested</button>`
+        : `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Book a trial</button>`;
+    }
+    if (!isTutor && viewer.role === 'TUTOR'){
+      const already = await alreadyHasRequestWith(targetId, false);
+      return already
+        ? `<button class="btn ghost small" disabled style="margin-top:20px;opacity:.6;cursor:not-allowed;">✓ Already requested</button>`
+        : `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Send a message</button>`;
+    }
+    return '';
+  }
+
   async function load(){
     const wrap = document.getElementById('profileWrap');
     if (!targetId){
@@ -99,11 +123,7 @@
 
       const actionBtn = !viewer
         ? `<a href="login.html" class="btn primary small" style="margin-top:20px;">Log in to contact</a>`
-        : isTutor && viewer.role === 'STUDENT'
-        ? `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Book a trial</button>`
-        : !isTutor && viewer.role === 'TUTOR'
-        ? `<button class="btn gold small" style="margin-top:20px;" onclick="openModal('${name}')">Send a message</button>`
-        : '';
+        : await buildActionButton(isTutor, name);
 
       wrap.innerHTML = `
         <div class="profile-card" style="max-width:640px;margin:0 auto;">
@@ -118,7 +138,7 @@
             ${fieldsHtml}
             ${fieldFull(isTutor ? 'Bio' : 'About', profile.bio)}
           </div>
-          ${actionBtn}
+          <div id="actionBtnWrap">${actionBtn}</div>
         </div>`;
     }catch(err){
       wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load this profile: ${err.message}</p>`;
@@ -157,6 +177,8 @@
       msg.textContent = 'Sent! Track its status from your Requests page.';
       msg.style.display = 'block';
       document.getElementById('actionForm').reset();
+      const wrapEl = document.getElementById('actionBtnWrap');
+      if (wrapEl) wrapEl.innerHTML = `<button class="btn ghost small" disabled style="margin-top:20px;opacity:.6;cursor:not-allowed;">✓ Already requested</button>`;
       setTimeout(closeModal, 1600);
     }catch(err){
       msg.className = 'msg error';
