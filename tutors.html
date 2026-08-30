@@ -179,6 +179,7 @@
       msg.className = 'msg success';
       msg.textContent = 'Trial request sent! Track its status from your dashboard.';
       msg.style.display = 'block';
+      playRequestSentSound();
       document.getElementById('trialForm').reset();
       alreadyRequestedIds.add(activeTutor.userId);
       setTimeout(() => { closeModal(); render(); }, 1600);
