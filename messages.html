@@ -130,10 +130,10 @@
       const content = input.value.trim();
       if (!content) return;
       input.disabled = true;
+      playMessageSound();
       try{
         await apiRequest('/messages/thread/' + requestId, { method:'POST', body: JSON.stringify({ content }) });
         input.value = '';
-        playMessageSound();
         await loadThreadInto(requestId, threadEl);
       }catch(err){
         alert(err.message);
