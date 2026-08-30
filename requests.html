@@ -71,10 +71,10 @@
       const content = input.value.trim();
       if (!content) return;
       input.disabled = true;
+      playMessageSound();
       try{
         await apiRequest('/messages/thread/' + requestId, { method:'POST', body: JSON.stringify({ content }) });
         input.value = '';
-        playMessageSound();
         await loadThread(requestId, threadEl);
       }catch(err){
         alert(err.message);
@@ -155,14 +155,16 @@
       wrap.querySelectorAll('[data-accept]').forEach(btn => {
         btn.addEventListener('click', async () => {
           btn.disabled = true;
-          try{ await updateTrialRequestStatus(btn.dataset.accept, 'ACCEPTED'); playAcceptSound(); load(); }
+          playAcceptSound();
+          try{ await updateTrialRequestStatus(btn.dataset.accept, 'ACCEPTED'); load(); }
           catch(err){ alert(err.message); btn.disabled = false; }
         });
       });
       wrap.querySelectorAll('[data-decline]').forEach(btn => {
         btn.addEventListener('click', async () => {
           btn.disabled = true;
-          try{ await updateTrialRequestStatus(btn.dataset.decline, 'DECLINED'); playDeclineSound(); load(); }
+          playDeclineSound();
+          try{ await updateTrialRequestStatus(btn.dataset.decline, 'DECLINED'); load(); }
           catch(err){ alert(err.message); btn.disabled = false; }
         });
       });
@@ -170,7 +172,8 @@
         btn.addEventListener('click', async () => {
           if (!confirm('Mark this class as completed? This will add +1 to your total classes taught.')) return;
           btn.disabled = true;
-          try{ await updateTrialRequestStatus(btn.dataset.complete, 'COMPLETED'); playAcceptSound(); load(); }
+          playAcceptSound();
+          try{ await updateTrialRequestStatus(btn.dataset.complete, 'COMPLETED'); load(); }
           catch(err){ alert(err.message); btn.disabled = false; }
         });
       });
