@@ -337,6 +337,12 @@ async function getUnreadMessageCount(){
   return data.count;
 }
 
+// NEW: one row per conversation (person + last message + unread count),
+// used by the dedicated messages.html conversation-list page.
+async function fetchConversations(){
+  return apiRequest('/messages/conversations');
+}
+
 async function updateTrialRequestStatus(id, status){
   return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
@@ -675,7 +681,7 @@ function sidebarHtml(active){
         <span>Requests</span>
         <span id="requestsBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
       </a>
-      <a href="requests.html" class="side-link" style="display:flex;align-items:center;justify-content:space-between;">
+      <a href="messages.html" class="side-link ${active==='messages'?'active':''}" style="display:flex;align-items:center;justify-content:space-between;">
         <span>Messages</span>
         <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
       </a>
