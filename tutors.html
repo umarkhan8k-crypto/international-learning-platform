@@ -61,6 +61,16 @@
   const empty = document.getElementById('emptyState');
   const loading = document.getElementById('loadingState');
   let activeTutor = null;
+  let alreadyRequestedIds = new Set();
+
+  async function loadAlreadyRequested(){
+    const user = currentUser();
+    if (!user) return;
+    try{
+      const { requests } = await fetchMyTrialRequests();
+      alreadyRequestedIds = new Set(requests.map(r => r.tutorId));
+    }catch(err){ /* ignore — buttons just won't show the already-requested state */ }
+  }
 
   const params = new URLSearchParams(location.search);
   if (params.get('subject')) document.getElementById('subjectFilter').value = params.get('subject');
@@ -94,10 +104,12 @@
 
       const data = await fetchTutors(q);
       const tutors = data.tutors || [];
+      await loadAlreadyRequested();
       loading.style.display = 'none';
       empty.style.display = tutors.length ? 'none' : 'block';
       grid.innerHTML = tutors.map(t=>{
         const name = t.user.firstName + ' ' + t.user.lastName;
+        const alreadyRequested = alreadyRequestedIds.has(t.userId);
         return `
         <div class="card tutor-card">
           <a href="public-profile.html?id=${t.userId}&role=tutor" style="text-decoration:none;color:inherit;">
@@ -118,7 +130,9 @@
           ${(t.languages||[]).length ? `<div class="lang-row">${(t.languages||[]).join(' · ')}</div>` : ''}
           <div class="tutor-bottom">
             <div class="tutor-price">$${t.price||'—'}<small> / class</small></div>
-            <button class="btn gold small" onclick="openModal('${t.userId}')">Book trial</button>
+            ${alreadyRequested
+              ? `<button class="btn ghost small" disabled style="opacity:.6;cursor:not-allowed;">✓ Already requested</button>`
+              : `<button class="btn gold small" onclick="openModal('${t.userId}')">Book trial</button>`}
           </div>
         </div>`;
       }).join('');
@@ -141,6 +155,7 @@
   function openModal(userId){
     const user = currentUser();
     if (!user){ location.href = 'login.html?next=tutors.html'; return; }
+    if (alreadyRequestedIds.has(userId)){ return; }
     activeTutor = (window.__tutorCache||[]).find(t=>t.userId===userId);
     if (!activeTutor) return;
     const name = activeTutor.user.firstName + ' ' + activeTutor.user.lastName;
@@ -165,7 +180,8 @@
       msg.textContent = 'Trial request sent! Track its status from your dashboard.';
       msg.style.display = 'block';
       document.getElementById('trialForm').reset();
-      setTimeout(closeModal, 1600);
+      alreadyRequestedIds.add(activeTutor.userId);
+      setTimeout(() => { closeModal(); render(); }, 1600);
     }catch(err){
       msg.className = 'msg error';
       msg.textContent = err.message;
