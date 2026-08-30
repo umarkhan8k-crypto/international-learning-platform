@@ -56,6 +56,10 @@
           <span>Requests</span>
           <span id="requestsBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
         </a>
+        <a href="requests.html" class="side-link" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Messages</span>
+          <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+        </a>
         <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
         <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
       </aside>`;
@@ -100,7 +104,17 @@
     }catch(err){ /* ignore — badge just stays hidden */ }
   }
 
-  async function handleEnableNotifications(btn){
+  async function refreshMessagesBadge(){
+    const badge = document.getElementById('messagesBadge');
+    if (!badge) return;
+    try{
+      const count = await getUnreadMessageCount();
+      if (count > 0){
+        badge.textContent = count;
+        badge.style.display = 'inline-block';
+      }
+    }catch(err){ /* ignore — badge just stays hidden */ }
+  }
     btn.disabled = true;
     const bell = document.getElementById('notifBell');
     const label = document.getElementById('notifLabel');
@@ -141,6 +155,7 @@
           </div>`;
         refreshNotifButtonState();
         refreshRequestsBadge();
+        refreshMessagesBadge();
         return;
       }
 
@@ -223,6 +238,7 @@
         </div>`;
       refreshNotifButtonState();
       refreshRequestsBadge();
+      refreshMessagesBadge();
     }catch(err){
       wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load your profile: ${err.message}</p>`;
     }
