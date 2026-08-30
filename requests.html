@@ -33,9 +33,8 @@
   }
 
   function requestCard(r){
-    const otherName = isTutor
-      ? r.student.firstName + ' ' + r.student.lastName
-      : r.tutor.firstName + ' ' + r.tutor.lastName;
+    const other = isTutor ? r.student : r.tutor;
+    const otherName = other.firstName + ' ' + other.lastName;
 
     // The receiver (whoever did NOT send the request) gets Accept/Decline.
     const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
@@ -73,7 +72,7 @@
           ${statusBadge(r.status)}
         </div>
         ${actions}
-        <a href="messages.html?open=${r.id}" class="btn ghost small" style="margin-top:10px;display:inline-block;">Message ${otherName.split(' ')[0]}</a>
+        <a href="messages.html?open=${other.id}" class="btn ghost small" style="margin-top:10px;display:inline-block;">Message ${otherName.split(' ')[0]}</a>
       </div>`;
   }
 
