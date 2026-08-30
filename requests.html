@@ -70,6 +70,34 @@
       </div>`;
   }
 
+  // Groups requests by status so Accepted / Pending / Completed / Declined
+  // each get their own labeled section instead of one mixed list.
+  function groupRequests(requests){
+    const groups = { ACCEPTED: [], PENDING: [], COMPLETED: [], DECLINED: [] };
+    requests.forEach(r => { if (groups[r.status]) groups[r.status].push(r); });
+    return groups;
+  }
+
+  function sectionHtml(title, color, list){
+    if (!list.length) return '';
+    return `
+      <div style="margin-bottom:28px;">
+        <h3 style="color:${color};margin:0 0 12px 0;font-size:1.05rem;">${title}</h3>
+        ${list.map(requestCard).join('')}
+      </div>`;
+  }
+
+  function renderGroupedRequests(requests){
+    if (!requests.length) return '<p style="color:var(--ink-2);">No requests yet.</p>';
+    const groups = groupRequests(requests);
+    return [
+      sectionHtml('Accepted Requests', '#1e7d43', groups.ACCEPTED),
+      sectionHtml('Pending Requests', '#b8860b', groups.PENDING),
+      sectionHtml('Completed', '#2e5aa8', groups.COMPLETED),
+      sectionHtml('Declined', '#c0392b', groups.DECLINED),
+    ].join('');
+  }
+
   async function load(){
     const wrap = document.getElementById('reqWrap');
     try{
@@ -80,7 +108,7 @@
           ${sidebarHtml('requests')}
           <div class="profile-card" style="flex:1;">
             <h2 style="margin-top:0;">Your trial requests</h2>
-            ${requests.length ? requests.map(requestCard).join('') : '<p style="color:var(--ink-2);">No requests yet.</p>'}
+            ${renderGroupedRequests(requests)}
           </div>
         </div>`;
       initSidebarWidgets();
