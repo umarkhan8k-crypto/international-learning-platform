@@ -75,6 +75,14 @@
   const empty = document.getElementById('emptyState');
   const loading = document.getElementById('loadingState');
   let activeStudent = null;
+  let alreadyRequestedIds = new Set();
+
+  async function loadAlreadyRequested(){
+    try{
+      const { requests } = await fetchMyTrialRequests();
+      alreadyRequestedIds = new Set(requests.map(r => r.studentId));
+    }catch(err){ /* ignore — buttons just won't show the already-requested state */ }
+  }
 
   function avatarHtml(name, pictureUrl){
     return pictureUrl
@@ -97,10 +105,12 @@
 
       const data = await fetchStudents(Object.fromEntries(params));
       const students = data.students || [];
+      await loadAlreadyRequested();
       loading.style.display = 'none';
       empty.style.display = students.length ? 'none' : 'block';
       grid.innerHTML = students.map(s=>{
         const name = s.user.firstName + ' ' + s.user.lastName;
+        const alreadyRequested = alreadyRequestedIds.has(s.userId);
         return `
         <div class="card tutor-card">
           <a href="public-profile.html?id=${s.userId}&role=student" style="text-decoration:none;color:inherit;">
@@ -119,7 +129,9 @@
           ${(s.languages||[]).length ? `<div class="lang-row">${(s.languages||[]).join(' · ')}</div>` : ''}
           <div class="tutor-bottom">
             <a href="public-profile.html?id=${s.userId}&role=student" class="btn ghost small">View profile</a>
-            <button class="btn gold small" onclick="openModal('${s.userId}')">Request</button>
+            ${alreadyRequested
+              ? `<button class="btn ghost small" disabled style="opacity:.6;cursor:not-allowed;">✓ Already requested</button>`
+              : `<button class="btn gold small" onclick="openModal('${s.userId}')">Request</button>`}
           </div>
         </div>`;
       }).join('');
@@ -136,6 +148,7 @@
   render();
 
   function openModal(userId){
+    if (alreadyRequestedIds.has(userId)){ return; }
     activeStudent = (window.__studentCache||[]).find(s=>s.userId===userId);
     if (!activeStudent) return;
     const name = activeStudent.user.firstName + ' ' + activeStudent.user.lastName;
@@ -158,7 +171,8 @@
       msg.textContent = 'Request sent! Track its status from your Requests page.';
       msg.style.display = 'block';
       document.getElementById('reqForm').reset();
-      setTimeout(closeModal, 1600);
+      alreadyRequestedIds.add(activeStudent.userId);
+      setTimeout(() => { closeModal(); render(); }, 1600);
     }catch(err){
       msg.className = 'msg error';
       msg.textContent = err.message;
