@@ -343,8 +343,14 @@ async function fetchConversations(){
   return apiRequest('/messages/conversations');
 }
 
-async function updateTrialRequestStatus(id, status){
-  return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify({ status }) });
+// Accept/Decline a trial request. When accepting, pass the real class
+// date & time as `scheduledAt` (an ISO string) — the backend uses that to
+// automatically mark the class COMPLETED once it passes, so there is no
+// manual "mark as completed" step anymore.
+async function updateTrialRequestStatus(id, status, scheduledAt){
+  const payload = { status };
+  if (scheduledAt) payload.scheduledAt = scheduledAt;
+  return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
 async function getMyProfile(){
