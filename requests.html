@@ -32,58 +32,6 @@
     return `<span style="color:${map[status]||'#888'};font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;">${status}</span>`;
   }
 
-  async function loadThread(requestId, threadEl){
-    threadEl.innerHTML = '<p style="color:var(--ink-2);font-size:.85rem;">Loading messages...</p>';
-    try{
-      const { messages } = await apiRequest('/messages/thread/' + requestId);
-      renderThread(requestId, threadEl, messages);
-    }catch(err){
-      threadEl.innerHTML = `<p style="color:var(--rose,#c0392b);font-size:.85rem;">${err.message}</p>`;
-    }
-  }
-
-  function renderThread(requestId, threadEl, messages){
-    const msgsHtml = messages.length
-      ? messages.map(m => {
-          const mine = m.senderId === user.id;
-          return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:6px;">
-            <div style="max-width:75%;padding:8px 12px;border-radius:12px;background:${mine?'var(--green,#1e7d43)':'#f0f0f0'};color:${mine?'#fff':'#222'};font-size:.88rem;">
-              ${m.content}
-            </div>
-          </div>`;
-        }).join('')
-      : '<p style="color:var(--ink-2);font-size:.85rem;">No messages yet — say hello.</p>';
-
-    threadEl.innerHTML = `
-      <div class="chat-scroll" style="max-height:240px;overflow-y:auto;padding:10px;border:1px solid var(--line,#eee);border-radius:8px;margin-bottom:10px;">
-        ${msgsHtml}
-      </div>
-      <form class="chat-form" style="display:flex;gap:8px;">
-        <input type="text" placeholder="Write a message..." required style="flex:1;padding:8px 12px;border:1px solid var(--line,#ccc);border-radius:8px;">
-        <button type="submit" class="btn primary small">Send</button>
-      </form>`;
-
-    threadEl.querySelector('.chat-scroll').scrollTop = threadEl.querySelector('.chat-scroll').scrollHeight;
-
-    threadEl.querySelector('.chat-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const input = e.target.querySelector('input');
-      const content = input.value.trim();
-      if (!content) return;
-      input.disabled = true;
-      playMessageSound();
-      try{
-        await apiRequest('/messages/thread/' + requestId, { method:'POST', body: JSON.stringify({ content }) });
-        input.value = '';
-        await loadThread(requestId, threadEl);
-      }catch(err){
-        alert(err.message);
-      }finally{
-        input.disabled = false;
-      }
-    });
-  }
-
   function requestCard(r){
     const otherName = isTutor
       ? r.student.firstName + ' ' + r.student.lastName
@@ -118,8 +66,7 @@
           ${statusBadge(r.status)}
         </div>
         ${actions}
-        <button class="btn ghost small toggle-chat" data-id="${r.id}" style="margin-top:10px;">Message ${otherName.split(' ')[0]}</button>
-        <div class="thread" data-thread="${r.id}" style="display:none;margin-top:12px;"></div>
+        <a href="messages.html?open=${r.id}" class="btn ghost small" style="margin-top:10px;display:inline-block;">Message ${otherName.split(' ')[0]}</a>
       </div>`;
   }
 
@@ -137,20 +84,6 @@
           </div>
         </div>`;
       initSidebarWidgets();
-
-      wrap.querySelectorAll('.toggle-chat').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.dataset.id;
-          const threadEl = wrap.querySelector(`.thread[data-thread="${id}"]`);
-          const opening = threadEl.style.display === 'none';
-          threadEl.style.display = opening ? 'block' : 'none';
-          btn.textContent = opening ? 'Hide messages' : btn.textContent.replace('Hide messages','Message');
-          if (opening && !threadEl.dataset.loaded){
-            threadEl.dataset.loaded = '1';
-            loadThread(id, threadEl);
-          }
-        });
-      });
 
       wrap.querySelectorAll('[data-accept]').forEach(btn => {
         btn.addEventListener('click', async () => {
