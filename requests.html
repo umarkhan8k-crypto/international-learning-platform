@@ -38,22 +38,29 @@
       : r.tutor.firstName + ' ' + r.tutor.lastName;
 
     // The receiver (whoever did NOT send the request) gets Accept/Decline.
-    // The tutor alone can mark an accepted lesson as completed.
     const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
     const iSentIt = !iAmReceiver;
 
     let actions = '';
     if (r.status === 'PENDING' && iAmReceiver){
-      actions = `<div style="display:flex;gap:8px;margin-top:10px;">
-           <button class="btn primary small" data-accept="${r.id}">Accept</button>
-           <button class="btn ghost small" data-decline="${r.id}">Decline</button>
-         </div>`;
+      actions = `
+        <div style="margin-top:10px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn primary small" data-accept-toggle="${r.id}">Accept</button>
+            <button class="btn ghost small" data-decline="${r.id}">Decline</button>
+          </div>
+          <div id="acceptForm-${r.id}" style="display:none;margin-top:10px;">
+            <label style="font-size:.8rem;color:var(--ink-2);display:block;margin-bottom:4px;">Class date &amp; time</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <input type="datetime-local" id="acceptTime-${r.id}" style="padding:8px;border:1px solid var(--line,#ccc);border-radius:6px;">
+              <button class="btn primary small" data-confirm-accept="${r.id}">Confirm</button>
+            </div>
+          </div>
+        </div>`;
     } else if (r.status === 'PENDING' && iSentIt){
       actions = `<p style="color:var(--ink-2);font-size:.85rem;margin-top:8px;">Waiting for ${otherName.split(' ')[0]} to respond.</p>`;
-    } else if (isTutor && r.status === 'ACCEPTED'){
-      actions = `<div style="margin-top:10px;">
-           <button class="btn primary small" data-complete="${r.id}">Mark class as completed</button>
-         </div>`;
+    } else if (r.status === 'ACCEPTED' && r.scheduledAt){
+      actions = `<p style="color:var(--ink-2);font-size:.85rem;margin-top:8px;">Scheduled for <strong>${fmtDate(r.scheduledAt)}</strong> — it will be marked completed automatically once that time passes.</p>`;
     }
 
     return `
@@ -113,28 +120,34 @@
         </div>`;
       initSidebarWidgets();
 
-      wrap.querySelectorAll('[data-accept]').forEach(btn => {
+      // Toggle the date/time mini-form open when "Accept" is tapped.
+      wrap.querySelectorAll('[data-accept-toggle]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const form = document.getElementById('acceptForm-' + btn.dataset.acceptToggle);
+          if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+        });
+      });
+
+      // Confirming the accept sends the chosen class date/time to the server.
+      wrap.querySelectorAll('[data-confirm-accept]').forEach(btn => {
         btn.addEventListener('click', async () => {
+          const id = btn.dataset.confirmAccept;
+          const input = document.getElementById('acceptTime-' + id);
+          const value = input ? input.value : '';
+          if (!value){ alert('Please choose the class date & time.'); return; }
+          const scheduledAt = new Date(value).toISOString();
           btn.disabled = true;
           playAcceptSound();
-          try{ await updateTrialRequestStatus(btn.dataset.accept, 'ACCEPTED'); load(); }
+          try{ await updateTrialRequestStatus(id, 'ACCEPTED', scheduledAt); load(); }
           catch(err){ alert(err.message); btn.disabled = false; }
         });
       });
+
       wrap.querySelectorAll('[data-decline]').forEach(btn => {
         btn.addEventListener('click', async () => {
           btn.disabled = true;
           playDeclineSound();
           try{ await updateTrialRequestStatus(btn.dataset.decline, 'DECLINED'); load(); }
-          catch(err){ alert(err.message); btn.disabled = false; }
-        });
-      });
-      wrap.querySelectorAll('[data-complete]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          if (!confirm('Mark this class as completed? This will add +1 to your total classes taught.')) return;
-          btn.disabled = true;
-          playAcceptSound();
-          try{ await updateTrialRequestStatus(btn.dataset.complete, 'COMPLETED'); load(); }
           catch(err){ alert(err.message); btn.disabled = false; }
         });
       });
