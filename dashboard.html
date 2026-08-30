@@ -12,12 +12,7 @@
 <section style="padding:40px 0;">
   <div class="container">
     <div class="profile-layout">
-      <aside class="profile-sidebar" id="dashSidebar">
-        <a href="dashboard.html" class="side-link active">Dashboard</a>
-        <a href="profile.html" class="side-link">Profile</a>
-        <a href="requests.html" class="side-link">Requests</a>
-        <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
-      </aside>
+      <div id="dashSidebarMount"></div>
 
       <div style="flex:1;min-width:0;">
         <div id="dashHead"></div>
@@ -86,15 +81,8 @@
   const user = currentUser();
   if (!user){ location.href = 'login.html?next=dashboard.html'; }
 
-  (function addFindLink(){
-    const isTutorUser = user.role === 'TUTOR';
-    const link = document.createElement('a');
-    link.href = isTutorUser ? 'students.html' : 'tutors.html';
-    link.className = 'side-link';
-    link.textContent = isTutorUser ? 'Find Students' : 'Find a Tutor';
-    const sidebar = document.getElementById('dashSidebar');
-    sidebar.insertBefore(link, sidebar.children[2]); // after Dashboard, Profile — before Requests
-  })();
+  document.getElementById('dashSidebarMount').innerHTML = sidebarHtml('dashboard');
+  initSidebarWidgets();
 
   document.getElementById('dashHead').innerHTML = `
     <div style="display:flex;align-items:center;gap:16px;">
