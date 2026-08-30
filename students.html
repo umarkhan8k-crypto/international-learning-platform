@@ -170,6 +170,7 @@
       msg.className = 'msg success';
       msg.textContent = 'Request sent! Track its status from your Requests page.';
       msg.style.display = 'block';
+      playRequestSentSound();
       document.getElementById('reqForm').reset();
       alreadyRequestedIds.add(activeStudent.userId);
       setTimeout(() => { closeModal(); render(); }, 1600);
