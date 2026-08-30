@@ -115,6 +115,7 @@
       }
     }catch(err){ /* ignore — badge just stays hidden */ }
   }
+  async function handleEnableNotifications(btn){
     btn.disabled = true;
     const bell = document.getElementById('notifBell');
     const label = document.getElementById('notifLabel');
