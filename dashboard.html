@@ -346,6 +346,8 @@
   async function respond(id, status){
     try{
       await updateTrialRequestStatus(id, status);
+      if (status === 'ACCEPTED' || status === 'COMPLETED') playAcceptSound();
+      else if (status === 'DECLINED') playDeclineSound();
       loadDashboard();
     }catch(err){
       alert(err.message);
