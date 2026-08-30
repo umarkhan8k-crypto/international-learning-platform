@@ -12,7 +12,7 @@
 <section style="padding:40px 0;">
   <div class="container">
     <div class="profile-layout">
-      <aside class="profile-sidebar">
+      <aside class="profile-sidebar" id="dashSidebar">
         <a href="dashboard.html" class="side-link active">Dashboard</a>
         <a href="profile.html" class="side-link">Profile</a>
         <a href="requests.html" class="side-link">Requests</a>
@@ -86,6 +86,16 @@
   const user = currentUser();
   if (!user){ location.href = 'login.html?next=dashboard.html'; }
 
+  (function addFindLink(){
+    const isTutorUser = user.role === 'TUTOR';
+    const link = document.createElement('a');
+    link.href = isTutorUser ? 'students.html' : 'tutors.html';
+    link.className = 'side-link';
+    link.textContent = isTutorUser ? 'Find Students' : 'Find a Tutor';
+    const sidebar = document.getElementById('dashSidebar');
+    sidebar.insertBefore(link, sidebar.children[2]); // after Dashboard, Profile — before Requests
+  })();
+
   document.getElementById('dashHead').innerHTML = `
     <div style="display:flex;align-items:center;gap:16px;">
       <div class="avatar avatar-lg">${initials(user.firstName+' '+user.lastName)}</div>
@@ -104,15 +114,24 @@
   function tutorName(r){ return (r.tutor.firstName||'') + ' ' + (r.tutor.lastName||''); }
   function studentKey(r){ return r.student.id || r.student.email || studentName(r); }
 
+  // Whether THIS logged-in user is the one who received the request (as
+  // opposed to the one who sent it) — either side can now be the sender,
+  // so this can no longer be assumed just from the user's role.
+  function iAmReceiver(r){
+    return r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
+  }
+
   function renderRequestActions(r){
-    if (!isTutor) return '';
-    if (r.status === 'PENDING'){
+    if (r.status === 'PENDING' && iAmReceiver(r)){
       return `<div style="display:flex;gap:8px;margin-top:6px;">
                  <button class="btn primary small" onclick="respond('${r.id}','ACCEPTED')">Accept</button>
                  <button class="btn ghost small" onclick="respond('${r.id}','DECLINED')">Decline</button>
                </div>`;
     }
-    if (r.status === 'ACCEPTED'){
+    if (r.status === 'PENDING' && !iAmReceiver(r)){
+      return `<p style="margin:6px 0 0;color:var(--ink-2);font-size:.82rem;">Waiting for a response.</p>`;
+    }
+    if (isTutor && r.status === 'ACCEPTED'){
       return `<div style="margin-top:6px;">
                  <button class="btn primary small" onclick="respond('${r.id}','COMPLETED')">Mark as completed</button>
                </div>`;
@@ -122,11 +141,12 @@
 
   function requestItemHtml(r){
     const otherName = isTutor ? studentName(r) : tutorName(r);
+    const label = r.initiatedBy === 'TUTOR' ? 'Message' : 'Preferred';
     return `
       <div class="req-item">
         <div>
           <strong>${otherName}</strong><br>
-          <span style="font-size:.82rem;color:var(--ink-2);">Preferred: ${r.preferredTime||'—'}</span>
+          <span style="font-size:.82rem;color:var(--ink-2);">${label}: ${r.preferredTime||'—'}</span>
           ${renderRequestActions(r)}
         </div>
         ${statusBadge(r.status)}
@@ -222,9 +242,9 @@
     }
     const recent = allRequests.slice(0, 6); // already newest-first from the API
     el.innerHTML = recent.map(r=>{
-      const verb = r.status === 'PENDING' ? 'New trial request from'
-                 : r.status === 'ACCEPTED' ? 'You accepted'
-                 : r.status === 'DECLINED' ? 'You declined'
+      const verb = r.status === 'PENDING' ? (iAmReceiver(r) ? 'New trial request from' : 'You sent a request to')
+                 : r.status === 'ACCEPTED' ? (iAmReceiver(r) ? 'You accepted' : 'Accepted by')
+                 : r.status === 'DECLINED' ? (iAmReceiver(r) ? 'You declined' : 'Declined by')
                  : r.status === 'COMPLETED' ? 'You completed a class with'
                  : 'Update for';
       return `<p style="margin:0 0 8px;font-size:.9rem;"><strong>${verb}</strong> ${studentName(r)}${r.preferredTime ? ' — preferred ' + r.preferredTime : ''}</p>`;
