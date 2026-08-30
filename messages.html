@@ -231,8 +231,18 @@
 </script>
 <style>
   .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
+  .profile-sidebar{
+    width:180px; flex-shrink:0; display:flex; flex-direction:column; gap:8px;
+    border:1px solid var(--line,#eee); border-radius:10px; padding:12px; background:#fff;
+  }
+  .side-link{
+    padding:10px 12px; border-radius:8px; text-decoration:none; color:var(--ink-2,#555);
+    font-weight:500; font-size:.92rem;
+  }
+  .side-link:hover{ background:#f4f4f4; }
+  .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
   .profile-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:24px; background:#fff; }
-  @media (max-width:720px){ .profile-layout{ flex-direction:column; } }
+  @media (max-width:720px){ .profile-layout{ flex-direction:column; } .profile-sidebar{ width:100%; flex-direction:row; } }
 
   #convList{ display:flex; flex-direction:column; gap:14px; margin-top:14px; }
 
