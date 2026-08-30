@@ -47,8 +47,10 @@
     const roleLabel = c.otherRole === 'TUTOR' ? 'Tutor' : 'Student';
     const profile = c.otherProfile || {};
     const metaParts = [profile.country, (profile.languages||[]).join(' · ')].filter(Boolean);
-    const mine = c.lastMessage.senderId === user.id;
+    const hasMessage = !!c.lastMessage;
+    const mine = hasMessage && c.lastMessage.senderId === user.id;
     const previewPrefix = mine ? 'You: ' : '';
+    const previewText = hasMessage ? (previewPrefix + c.lastMessage.content) : 'No messages yet — say hello.';
 
     return `
       <div class="conv-card" data-req="${c.requestId}">
@@ -61,12 +63,12 @@
             </div>
             ${metaParts.length ? `<div class="conv-meta">${metaParts.join(' · ')}</div>` : ''}
           </div>
-          <div class="conv-stamp">${fmtStamp(c.lastMessage.createdAt)}</div>
+          <div class="conv-stamp">${hasMessage ? fmtStamp(c.lastMessage.createdAt) : ''}</div>
           ${c.unreadCount > 0 ? `<span class="conv-badge">${c.unreadCount}</span>` : ''}
         </div>
 
         <div class="conv-preview-wrap">
-          <p class="conv-preview">${previewPrefix}${c.lastMessage.content}</p>
+          <p class="conv-preview">${previewText}</p>
           <span class="conv-readmore">Read more</span>
         </div>
 
@@ -161,12 +163,39 @@
     card.querySelector('.conv-readmore').addEventListener('click', (e) => { e.stopPropagation(); openThread(); });
     card.querySelector('.conv-top').addEventListener('click', openThread);
     previewWrap.addEventListener('click', openThread);
+
+    return { openThread };
   }
 
   async function load(){
     const wrap = document.getElementById('msgWrap');
+    const openId = new URLSearchParams(location.search).get('open');
     try{
       const { conversations } = await fetchConversations();
+      let list = conversations;
+
+      // Arrived via a "Message X" link from the Requests page for a
+      // conversation with no messages yet — it won't be in the list above
+      // (conversations only include threads that already have a message),
+      // so build a placeholder card for it from the trial request itself.
+      if (openId && !list.some(c => c.requestId === openId)){
+        try{
+          const { requests } = await fetchMyTrialRequests();
+          const match = requests.find(r => r.id === openId);
+          if (match){
+            const isTutor = user.role === 'TUTOR';
+            const other = isTutor ? match.student : match.tutor;
+            list = [{
+              requestId: match.id,
+              other: { id: other.id, firstName: other.firstName, lastName: other.lastName },
+              otherRole: isTutor ? 'STUDENT' : 'TUTOR',
+              otherProfile: null,
+              lastMessage: null,
+              unreadCount: 0,
+            }, ...list];
+          }
+        }catch(err){ /* ignore — the direct-open just won't have a stub card */ }
+      }
 
       wrap.innerHTML = `
         <div class="profile-layout">
@@ -174,18 +203,25 @@
           <div class="profile-card" style="flex:1;min-width:0;">
             <h2 style="margin-top:0;">Messages</h2>
             <div id="convList">
-              ${conversations.length
-                ? conversations.map(conversationCard).join('')
+              ${list.length
+                ? list.map(conversationCard).join('')
                 : '<p style="color:var(--ink-2);">No conversations yet — messages you send or receive will show up here.</p>'}
             </div>
           </div>
         </div>`;
       initSidebarWidgets();
 
+      const handles = {};
       wrap.querySelectorAll('.conv-card').forEach(card => {
-        wireCard(card);
+        handles[card.dataset.req] = wireCard(card);
         statusOfPreview(card);
       });
+
+      if (openId && handles[openId]){
+        handles[openId].openThread();
+        const targetCard = wrap.querySelector(`.conv-card[data-req="${openId}"]`);
+        if (targetCard) targetCard.scrollIntoView({ behavior:'smooth', block:'start' });
+      }
     }catch(err){
       wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load your messages: ${err.message}</p>`;
     }
