@@ -692,8 +692,41 @@ function sidebarHtml(active){
         <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
       </a>
       <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
+
+      <p class="side-label">Start a Class</p>
+      <button type="button" class="side-link start-class-btn scb-meet" onclick="startGoogleMeet()">
+        <span class="scb-icon">📹</span><span>Google Meet</span>
+      </button>
+      <button type="button" class="side-link start-class-btn scb-zoom" onclick="startZoomMeeting()">
+        <span class="scb-icon">🎥</span><span>Zoom</span>
+      </button>
+      <button type="button" class="side-link start-class-btn scb-teams" onclick="startTeamsMeeting()">
+        <span class="scb-icon">👥</span><span>Microsoft Teams</span>
+      </button>
+      <button type="button" class="side-link start-class-btn scb-whatsapp" onclick="startWhatsAppCall()">
+        <span class="scb-icon">💬</span><span>WhatsApp</span>
+      </button>
+
       <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
     </aside>`;
+}
+
+/* ---------- "Start a Class" — opens the meeting service in a new tab.
+   Security policies of Zoom/Meet/Teams/WhatsApp prevent them from being
+   embedded inside another website, so a new tab is the only reliable way
+   to launch them. The tutor/student then copies the meeting link from
+   that tab and pastes it into Messages for the other person. ---------- */
+function startGoogleMeet(){
+  window.open('https://meet.google.com/new', '_blank', 'noopener');
+}
+function startZoomMeeting(){
+  window.open('https://zoom.us/start', '_blank', 'noopener');
+}
+function startTeamsMeeting(){
+  window.open('https://teams.live.com/meet', '_blank', 'noopener');
+}
+function startWhatsAppCall(){
+  window.open('https://web.whatsapp.com/', '_blank', 'noopener');
 }
 
 // Colors the bell green + updates the label if this browser already has an
