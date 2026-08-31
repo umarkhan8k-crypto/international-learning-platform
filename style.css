@@ -468,3 +468,26 @@ footer,#footer{margin-top:auto;background:var(--brand-dark);color:rgba(255,255,2
 
 /* certificate type restriction row */
 .cert-type-row{margin-bottom:10px;}
+
+/* =====================================================================
+   Sidebar — "Start a Class" section
+   ===================================================================== */
+.side-label{
+  font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--ink-2);margin:14px 4px 4px;padding-top:10px;border-top:1px solid var(--line);
+}
+.start-class-btn{
+  display:flex;align-items:center;gap:8px;width:100%;
+  border:none;background:none;text-align:left;cursor:pointer;font:inherit;
+  color:var(--ink-2,#555);
+}
+.start-class-btn:hover{background:#f4f4f4;}
+.start-class-btn .scb-icon{font-size:1rem;line-height:1;flex:none;}
+.scb-meet:hover{color:var(--brand);}
+.scb-zoom:hover{color:#2563eb;}
+.scb-teams:hover{color:#4f46e5;}
+.scb-whatsapp:hover{color:#22c55e;}
+
+@media (max-width:720px){
+  .side-label{border-top:none;margin-top:6px;}
+}
