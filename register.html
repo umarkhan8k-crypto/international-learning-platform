@@ -60,7 +60,12 @@ document.getElementById('registerForm').addEventListener('submit', async e=>{
       role,
     });
     msg.className='msg success'; msg.textContent='Account created! Redirecting to complete your profile...'; msg.style.display='block';
-    setTimeout(()=> location.href='profile-setup.html', 900);
+    // Carry through ?next= (where the visitor was trying to go before
+    // they were asked to register) so profile-setup.html can send them
+    // back there once their profile is complete.
+    const next = new URLSearchParams(location.search).get('next');
+    const setupUrl = 'profile-setup.html' + (next ? ('?next=' + encodeURIComponent(next)) : '');
+    setTimeout(()=> location.href = setupUrl, 900);
   }catch(err){
     msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
     submitBtn.disabled = false;
