@@ -51,10 +51,12 @@
 
 <div id="footer"></div>
 <script src="app.js"></script>
+<script src="authgate.js"></script>
 <script>
+requireAuthAndProfile().then(() => {
+
   const user = currentUser();
-  if (!user){ location.href = 'login.html?next=students.html'; }
-  if (user.role !== 'TUTOR'){ location.href = 'dashboard.html'; }
+  if (user.role !== 'TUTOR'){ location.href = 'dashboard.html'; return; }
 
   let myProfile = null;
   getMyProfile().then(p => { myProfile = p; }).catch(() => {});
@@ -159,6 +161,8 @@
     document.getElementById('reqModal').classList.add('open');
   }
   function closeModal(){ document.getElementById('reqModal').classList.remove('open'); }
+  window.openModal = openModal;
+  window.closeModal = closeModal;
 
   document.getElementById('reqForm').addEventListener('submit', async e=>{
     e.preventDefault();
@@ -181,6 +185,8 @@
     }
     submitBtn.disabled = false;
   });
+
+});
 </script>
 </body>
 </html>
