@@ -12,7 +12,20 @@
 <section style="padding:40px 0;">
   <div class="container">
     <div class="profile-layout">
-      <div id="dashSidebarMount"></div>
+      <aside class="profile-sidebar" id="dashSidebar">
+        <a href="dashboard.html" class="side-link active">Dashboard</a>
+        <a href="profile.html" class="side-link">Profile</a>
+        <a href="requests.html" class="side-link" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Requests</span>
+          <span id="requestsBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+        </a>
+        <a href="requests.html" class="side-link" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Messages</span>
+          <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+        </a>
+        <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
+        <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
+      </aside>
 
       <div style="flex:1;min-width:0;">
         <div id="dashHead"></div>
@@ -77,14 +90,19 @@
 
 <div id="footer"></div>
 <script src="app.js"></script>
-<script src="authgate.js"></script>
 <script>
-requireAuthAndProfile().then(() => {
-
   const user = currentUser();
+  if (!user){ location.href = 'login.html?next=dashboard.html'; }
 
-  document.getElementById('dashSidebarMount').innerHTML = sidebarHtml('dashboard');
-  initSidebarWidgets();
+  (function addFindLink(){
+    const isTutorUser = user.role === 'TUTOR';
+    const link = document.createElement('a');
+    link.href = isTutorUser ? 'students.html' : 'tutors.html';
+    link.className = 'side-link';
+    link.textContent = isTutorUser ? 'Find Students' : 'Find a Tutor';
+    const sidebar = document.getElementById('dashSidebar');
+    sidebar.insertBefore(link, sidebar.children[2]); // after Dashboard, Profile — before Requests
+  })();
 
   document.getElementById('dashHead').innerHTML = `
     <div style="display:flex;align-items:center;gap:16px;">
@@ -99,11 +117,73 @@ requireAuthAndProfile().then(() => {
   let tutorProfile = null; // filled in for the earnings estimate
   let studentsIndex = [];  // built once per load, used by the modal
 
+  async function refreshNotifButtonState(){
+    const bell = document.getElementById('notifBell');
+    const label = document.getElementById('notifLabel');
+    if (!bell || !label) return;
+    try{
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = registration ? await registration.pushManager.getSubscription() : null;
+      if (subscription && Notification.permission === 'granted'){
+        bell.textContent = '🟢';
+        label.textContent = 'Notifications on';
+        label.style.color = '#1e7d43';
+      }
+    }catch(err){ /* ignore — button just stays in its default (off) state */ }
+  }
+
+  async function handleEnableNotifications(btn){
+    btn.disabled = true;
+    const bell = document.getElementById('notifBell');
+    const label = document.getElementById('notifLabel');
+    try{
+      await enablePushNotifications();
+      if (bell) bell.textContent = '🟢';
+      if (label){ label.textContent = 'Notifications on'; label.style.color = '#1e7d43'; }
+    }catch(err){
+      alert(err.message);
+      btn.disabled = false;
+    }
+  }
+  window.handleEnableNotifications = handleEnableNotifications;
+
+  function refreshRequestsBadge(requests){
+    const badge = document.getElementById('requestsBadge');
+    if (!badge) return;
+    const pendingForMe = requests.filter(r => {
+      const receiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
+      return r.status === 'PENDING' && receiver;
+    }).length;
+    if (pendingForMe > 0){
+      badge.textContent = pendingForMe;
+      badge.style.display = 'inline-block';
+    }
+  }
+
+  async function refreshMessagesBadge(){
+    const badge = document.getElementById('messagesBadge');
+    if (!badge) return;
+    try{
+      const count = await getUnreadMessageCount();
+      if (count > 0){
+        badge.textContent = count;
+        badge.style.display = 'inline-block';
+      }
+    }catch(err){ /* ignore — badge just stays hidden */ }
+  }
+
+  refreshNotifButtonState();
+  refreshMessagesBadge();
+
   function statusBadge(s){ return `<span class="badge-status ${(s||'').toLowerCase()}">${s}</span>`; }
   function studentName(r){ return (r.student.firstName||'') + ' ' + (r.student.lastName||''); }
   function tutorName(r){ return (r.tutor.firstName||'') + ' ' + (r.tutor.lastName||''); }
   function studentKey(r){ return r.student.id || r.student.email || studentName(r); }
 
+  // Whether THIS logged-in user is the one who received the request (as
+  // opposed to the one who sent it) — either side can now be the sender,
+  // so this can no longer be assumed just from the user's role.
   function iAmReceiver(r){
     return r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
   }
@@ -140,7 +220,14 @@ requireAuthAndProfile().then(() => {
       </div>`;
   }
 
+  /* ---------- tutor dashboard ---------- */
+  /* Requests come back from the API newest-first (orderBy createdAt desc),
+     so requests[0] is always the most recent — no need to reverse anything. */
+
   function buildStudentsIndex(requests){
+    // A student "belongs" to the tutor once a request has been accepted at
+    // least once — whether it's still ongoing (ACCEPTED) or already taught
+    // (COMPLETED). Declined/pending-only requests don't count as a student yet.
     const relevant = requests.filter(r => r.status === 'ACCEPTED' || r.status === 'COMPLETED');
     const map = new Map();
     relevant.forEach(r=>{
@@ -220,7 +307,7 @@ requireAuthAndProfile().then(() => {
       el.innerHTML = '<p style="color:var(--ink-2);">Nothing yet.</p>';
       return;
     }
-    const recent = allRequests.slice(0, 6);
+    const recent = allRequests.slice(0, 6); // already newest-first from the API
     el.innerHTML = recent.map(r=>{
       const verb = r.status === 'PENDING' ? (iAmReceiver(r) ? 'New trial request from' : 'You sent a request to')
                  : r.status === 'ACCEPTED' ? (iAmReceiver(r) ? 'You accepted' : 'Accepted by')
@@ -303,6 +390,8 @@ requireAuthAndProfile().then(() => {
       : '<p style="color:var(--ink-2);">No pending requests.</p>';
   }
 
+  /* ---------- student dashboard (unchanged behaviour) ---------- */
+
   function renderStudentDashboard(requests){
     document.getElementById('studentReqCard').style.display = 'block';
     const el = document.getElementById('studentReqList');
@@ -311,6 +400,8 @@ requireAuthAndProfile().then(() => {
       : '<p style="color:var(--ink-2);">You haven\'t booked a trial yet.</p>';
   }
 
+  /* ---------- shared load + respond ---------- */
+
   async function loadDashboard(){
     try{
       if (isTutor){
@@ -318,6 +409,7 @@ requireAuthAndProfile().then(() => {
       }
       const data = await fetchMyTrialRequests();
       const requests = data.requests || [];
+      refreshRequestsBadge(requests);
       if (isTutor){
         renderTutorDashboard(requests, tutorProfile);
       } else {
@@ -332,8 +424,6 @@ requireAuthAndProfile().then(() => {
   }
 
   async function respond(id, status){
-    if (status === 'ACCEPTED' || status === 'COMPLETED') playAcceptSound();
-    else if (status === 'DECLINED') playDeclineSound();
     try{
       await updateTrialRequestStatus(id, status);
       loadDashboard();
@@ -344,8 +434,6 @@ requireAuthAndProfile().then(() => {
   window.respond = respond;
 
   loadDashboard();
-
-});
 </script>
 <style>
   .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
