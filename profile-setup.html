@@ -177,7 +177,14 @@
 <script src="app.js"></script>
 <script>
 const user = currentUser();
-if (!user){ location.href = 'register.html'; }
+// Preserve ?next= (where the visitor was originally headed) when we have
+// to bounce an unauthenticated visitor to register.html first.
+if (!user){ location.href = 'register.html' + location.search; }
+
+// Where to send the user once the profile is saved: back to whatever
+// page they originally tried to reach, or profile.html by default.
+const nextAfterSave = new URLSearchParams(location.search).get('next') || 'profile.html';
+
 let tPic='', tAudio='', sPic='';
 
 /* ---------- validation helpers ---------- */
@@ -357,7 +364,7 @@ qualification: document.getElementById('t_qualification').value.trim(),
 bio: document.getElementById('t_bio').value.trim(),
 price: priceVal,
 languages: tLang.getValues(),
-}).then(()=>{ location.href = 'profile.html'; }).catch(err=>{
+}).then(()=>{ location.href = nextAfterSave; }).catch(err=>{
   const msg = document.getElementById('setupMsg');
   msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
 });
@@ -448,7 +455,7 @@ interests,
 languages: sLang.getValues(),
 availability: document.getElementById('s_availability').value.trim(),
 bio: document.getElementById('s_bio').value.trim(),
-}).then(()=>{ location.href = 'profile.html'; }).catch(err=>{
+}).then(()=>{ location.href = nextAfterSave; }).catch(err=>{
   const msg = document.getElementById('setupMsg');
   msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
 });
