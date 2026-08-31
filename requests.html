@@ -17,9 +17,11 @@
 
 <div id="footer"></div>
 <script src="app.js"></script>
+<script src="authgate.js"></script>
 <script>
+requireAuthAndProfile().then(() => {
+
   const user = currentUser();
-  if (!user){ location.href = 'login.html?next=requests.html'; }
   const isTutor = user.role === 'TUTOR';
 
   function fmtDate(iso){
@@ -36,7 +38,6 @@
     const other = isTutor ? r.student : r.tutor;
     const otherName = other.firstName + ' ' + other.lastName;
 
-    // The receiver (whoever did NOT send the request) gets Accept/Decline.
     const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
     const iSentIt = !iAmReceiver;
 
@@ -76,8 +77,6 @@
       </div>`;
   }
 
-  // Groups requests by status so Accepted / Pending / Completed / Declined
-  // each get their own labeled section instead of one mixed list.
   function groupRequests(requests){
     const groups = { ACCEPTED: [], PENDING: [], COMPLETED: [], DECLINED: [] };
     requests.forEach(r => { if (groups[r.status]) groups[r.status].push(r); });
@@ -119,7 +118,6 @@
         </div>`;
       initSidebarWidgets();
 
-      // Toggle the date/time mini-form open when "Accept" is tapped.
       wrap.querySelectorAll('[data-accept-toggle]').forEach(btn => {
         btn.addEventListener('click', () => {
           const form = document.getElementById('acceptForm-' + btn.dataset.acceptToggle);
@@ -127,7 +125,6 @@
         });
       });
 
-      // Confirming the accept sends the chosen class date/time to the server.
       wrap.querySelectorAll('[data-confirm-accept]').forEach(btn => {
         btn.addEventListener('click', async () => {
           const id = btn.dataset.confirmAccept;
@@ -156,6 +153,8 @@
   }
 
   load();
+
+});
 </script>
 <style>
   .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
