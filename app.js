@@ -2,34 +2,6 @@
 
 const API_BASE = 'https://ilp-backend-production-77a4.up.railway.app/api';
 
-/* ---------- sound cues (generated tones — no audio files needed) ---------- */
-let __audioCtx = null;
-function playTone(freqs, stepDuration = 0.14){
-  try{
-    if (!__audioCtx) __audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (__audioCtx.state === 'suspended') __audioCtx.resume();
-    const now = __audioCtx.currentTime;
-    freqs.forEach((freq, i) => {
-      const osc = __audioCtx.createOscillator();
-      const gain = __audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const start = now + i * stepDuration;
-      const end = start + stepDuration;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.18, start + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, end);
-      osc.connect(gain); gain.connect(__audioCtx.destination);
-      osc.start(start); osc.stop(end);
-    });
-  }catch(err){ /* audio not supported/blocked — silently skip */ }
-}
-function playMessageSound(){ playTone([880, 1108]); }          // message sent / received
-function playNotificationSound(){ playTone([660, 880, 1108]); } // generic new-notification chime
-function playAcceptSound(){ playTone([523, 659, 784]); }        // request accepted / completed
-function playDeclineSound(){ playTone([392, 311]); }            // request declined
-function playRequestSentSound(){ playTone([784, 988]); }        // trial request successfully sent
-
 const ORNAMENT = `<svg class="ornament" viewBox="0 0 100 100"><path d="M50 2 L61 39 L98 39 L68 61 L79 98 L50 75 L21 98 L32 61 L2 39 L39 39 Z"/></svg>`;
 
 /* ---------- countries (name, iso2, dial code) ---------- */
@@ -306,11 +278,13 @@ async function fetchTutors(query = {}){
   return apiRequest('/tutors' + (params ? '?' + params : ''));
 }
 
+// NEW: mirrors fetchTutors, for the "Find Students" page
 async function fetchStudents(query = {}){
   const params = new URLSearchParams(query).toString();
   return apiRequest('/students' + (params ? '?' + params : ''));
 }
 
+// NEW: read a single tutor's or student's public profile (used by public-profile.html)
 async function getPublicTutorProfile(userId){
   const data = await apiRequest('/tutors/' + userId);
   return data.tutor;
@@ -324,6 +298,7 @@ async function createTrialRequestApi({ tutorId, preferredTime }){
   return apiRequest('/trial-requests', { method: 'POST', body: JSON.stringify({ tutorId, preferredTime }) });
 }
 
+// NEW: mirrors createTrialRequestApi — a tutor sending a trial request to a student
 async function createTutorRequestApi({ studentId, preferredTime }){
   return apiRequest('/trial-requests/from-tutor', { method: 'POST', body: JSON.stringify({ studentId, preferredTime }) });
 }
@@ -332,27 +307,19 @@ async function fetchMyTrialRequests(){
   return apiRequest('/trial-requests/mine');
 }
 
+// NEW: unread message count, used for the "Messages" sidebar badge
 async function getUnreadMessageCount(){
   const data = await apiRequest('/messages/unread-count');
   return data.count;
 }
 
-// NEW: one row per conversation (person + last message + unread count),
-// used by the dedicated messages.html conversation-list page.
-async function fetchConversations(){
-  return apiRequest('/messages/conversations');
+async function updateTrialRequestStatus(id, status){
+  return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
 
-// Accept/Decline a trial request. When accepting, pass the real class
-// date & time as `scheduledAt` (an ISO string) — the backend uses that to
-// automatically mark the class COMPLETED once it passes, so there is no
-// manual "mark as completed" step anymore.
-async function updateTrialRequestStatus(id, status, scheduledAt){
-  const payload = { status };
-  if (scheduledAt) payload.scheduledAt = scheduledAt;
-  return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
-}
-
+/* FIX: backend returns { profile: {...} } — unwrap it here so every caller
+   (profile-setup.html, profile.html, etc.) gets the actual profile object
+   directly, with real fields like country/phone/subjects populated. */
 async function getMyProfile(){
   const data = await apiRequest('/profile/me');
   return data.profile;
@@ -360,6 +327,11 @@ async function getMyProfile(){
 
 async function fetchStats(){
   return apiRequest('/stats');
+}
+
+// NEW: deactivate the logged-in user's own account
+async function deactivateAccount(){
+  return apiRequest('/auth/deactivate', { method: 'POST' });
 }
 
 /* ---------- push notifications ---------- */
@@ -664,154 +636,6 @@ function renderFooter(){
       </div>
       <div class="foot-bottom">© 2026 International Learning Platform. All rights reserved.</div>
     </div>`;
-}
-
-/* =====================================================================
-   Shared profile-area sidebar — used by dashboard.html, profile.html,
-   requests.html, etc. so every page shows the same links (including
-   Messages and Notifications) instead of each page hand-rolling its own.
-   ===================================================================== */
-function sidebarHtml(active){
-  const user = currentUser();
-  if (!user) return '';
-  const isTutor = user.role === 'TUTOR';
-  const findLink = isTutor
-    ? `<a href="students.html" class="side-link ${active==='find'?'active':''}">Find Students</a>`
-    : `<a href="tutors.html" class="side-link ${active==='find'?'active':''}">Find a Tutor</a>`;
-  return `
-    <aside class="profile-sidebar" id="dashSidebar">
-      <a href="dashboard.html" class="side-link ${active==='dashboard'?'active':''}">Dashboard</a>
-      <a href="profile.html" class="side-link ${active==='profile'?'active':''}">Profile</a>
-      ${findLink}
-      <a href="requests.html" class="side-link ${active==='requests'?'active':''}" style="display:flex;align-items:center;justify-content:space-between;">
-        <span>Requests</span>
-        <span id="requestsBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
-      </a>
-      <a href="messages.html" class="side-link ${active==='messages'?'active':''}" style="display:flex;align-items:center;justify-content:space-between;">
-        <span>Messages</span>
-        <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
-      </a>
-      <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
-
-      <p class="side-label">Start a Class</p>
-      <button type="button" class="side-link start-class-btn scb-meet" onclick="startGoogleMeet()">
-        <span class="scb-icon">📹</span><span>Google Meet</span>
-      </button>
-      <button type="button" class="side-link start-class-btn scb-zoom" onclick="startZoomMeeting()">
-        <span class="scb-icon">🎥</span><span>Zoom</span>
-      </button>
-      <button type="button" class="side-link start-class-btn scb-teams" onclick="startTeamsMeeting()">
-        <span class="scb-icon">👥</span><span>Microsoft Teams</span>
-      </button>
-      <button type="button" class="side-link start-class-btn scb-whatsapp" onclick="startWhatsAppCall()">
-        <span class="scb-icon">💬</span><span>WhatsApp</span>
-      </button>
-
-      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
-    </aside>`;
-}
-
-/* ---------- "Start a Class" — opens the meeting service in a new tab.
-   Security policies of Zoom/Meet/Teams/WhatsApp prevent them from being
-   embedded inside another website, so a new tab is the only reliable way
-   to launch them. The tutor/student then copies the meeting link from
-   that tab and pastes it into Messages for the other person. ---------- */
-function startGoogleMeet(){
-  window.open('https://meet.google.com/new', '_blank', 'noopener');
-}
-function startZoomMeeting(){
-  window.open('https://zoom.us/start', '_blank', 'noopener');
-}
-function startTeamsMeeting(){
-  window.open('https://teams.live.com/meet', '_blank', 'noopener');
-}
-function startWhatsAppCall(){
-  window.open('https://web.whatsapp.com/', '_blank', 'noopener');
-}
-
-// Colors the bell green + updates the label if this browser already has an
-// active push subscription — so state is correct on load, not just after
-// the button is clicked.
-async function refreshNotifButtonState(){
-  const bell = document.getElementById('notifBell');
-  const label = document.getElementById('notifLabel');
-  if (!bell || !label) return;
-  try{
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    const registration = await navigator.serviceWorker.getRegistration();
-    const subscription = registration ? await registration.pushManager.getSubscription() : null;
-    if (subscription && Notification.permission === 'granted'){
-      bell.textContent = '🟢';
-      label.textContent = 'Notifications on';
-      label.style.color = '#1e7d43';
-    }
-  }catch(err){ /* ignore — button just stays in its default (off) state */ }
-}
-
-// Counts trial requests waiting on THIS user's response and shows that
-// count as a badge next to "Requests".
-async function refreshRequestsBadge(){
-  const badge = document.getElementById('requestsBadge');
-  const user = currentUser();
-  if (!badge || !user) return;
-  try{
-    const isTutor = user.role === 'TUTOR';
-    const { requests } = await fetchMyTrialRequests();
-    const pendingForMe = requests.filter(r => {
-      const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
-      return r.status === 'PENDING' && iAmReceiver;
-    }).length;
-    if (pendingForMe > 0){
-      badge.textContent = pendingForMe;
-      badge.style.display = 'inline-block';
-    }
-  }catch(err){ /* ignore — badge just stays hidden */ }
-}
-
-async function refreshMessagesBadge(){
-  const badge = document.getElementById('messagesBadge');
-  if (!badge) return;
-  try{
-    const count = await getUnreadMessageCount();
-    if (count > 0){
-      badge.textContent = count;
-      badge.style.display = 'inline-block';
-    }
-  }catch(err){ /* ignore — badge just stays hidden */ }
-}
-
-async function handleEnableNotifications(btn){
-  btn.disabled = true;
-  const bell = document.getElementById('notifBell');
-  const label = document.getElementById('notifLabel');
-  try{
-    await enablePushNotifications();
-    if (bell) bell.textContent = '🟢';
-    if (label){ label.textContent = 'Notifications on'; label.style.color = '#1e7d43'; }
-  }catch(err){
-    alert(err.message);
-    btn.disabled = false;
-  }
-}
-
-// Call this once, right after injecting sidebarHtml() into the page, to
-// wire up the notification bell state and the two unread-count badges.
-function initSidebarWidgets(){
-  refreshNotifButtonState();
-  refreshRequestsBadge();
-  refreshMessagesBadge();
-}
-
-// If sw.js posts a message back to the page when a push notification
-// arrives (see sw.js), play a chime here — this only fires while this
-// tab is open; when the tab/site is closed the OS's own notification
-// sound plays instead.
-if ('serviceWorker' in navigator){
-  navigator.serviceWorker.addEventListener('message', (event) => {
-    if (event.data && event.data.type === 'push-received'){
-      playNotificationSound();
-    }
-  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
