@@ -313,6 +313,31 @@ async function getUnreadMessageCount(){
   return data.count;
 }
 
+// NEW: list of the user's conversations — each with the other person's info,
+// public profile (for country/language/picture), last message, and unread count.
+// Used by messages.html. Confirm your backend exposes GET /messages/conversations.
+async function fetchConversations(){
+  return apiRequest('/messages/conversations');
+}
+
+// NEW: short, unobtrusive "message sent" blip — no external audio file needed.
+function playMessageSound(){
+  try{
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  }catch(e){ /* ignore — sound is a nice-to-have, never block sending */ }
+}
+
 async function updateTrialRequestStatus(id, status){
   return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify({ status }) });
 }
