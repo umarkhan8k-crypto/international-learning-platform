@@ -40,7 +40,15 @@
         password: document.getElementById('password').value,
       });
       const next = new URLSearchParams(location.search).get('next') || 'profile.html';
-      location.href = next;
+      // Don't just go to `next` blindly — if the profile isn't complete
+      // yet, send them to profile-setup.html first (it will forward them
+      // to `next` once they finish, via ?next=).
+      try{
+        const profile = await getMyProfile();
+        location.href = profile ? next : ('profile-setup.html?next=' + encodeURIComponent(next));
+      }catch(profileErr){
+        location.href = 'profile-setup.html?next=' + encodeURIComponent(next);
+      }
     }catch(err){
       msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
       submitBtn.disabled = false;
