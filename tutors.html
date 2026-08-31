@@ -56,7 +56,12 @@
 
 <div id="footer"></div>
 <script src="app.js"></script>
+<script src="authgate.js"></script>
 <script>
+  // NOTE: this page is intentionally public — anyone (logged in or not)
+  // can browse tutors. Only the "Book trial" action below requires a
+  // logged-in account with a complete profile (see openModal).
+
   const grid = document.getElementById('tutorGrid');
   const empty = document.getElementById('emptyState');
   const loading = document.getElementById('loadingState');
@@ -152,19 +157,25 @@
   });
   render();
 
+  // Booking a trial is the one action on this public page that requires
+  // a logged-in account with a complete profile. requireAuthAndProfile()
+  // pops the auth-gate overlay right here (no page navigation) if needed,
+  // and only opens the booking modal once the visitor is fully set up.
   function openModal(userId){
-    const user = currentUser();
-    if (!user){ location.href = 'login.html?next=tutors.html'; return; }
     if (alreadyRequestedIds.has(userId)){ return; }
-    activeTutor = (window.__tutorCache||[]).find(t=>t.userId===userId);
-    if (!activeTutor) return;
-    const name = activeTutor.user.firstName + ' ' + activeTutor.user.lastName;
-    document.getElementById('modalTutorName').textContent = 'Book a trial with ' + name;
-    document.getElementById('modalTutorMeta').textContent = (activeTutor.subjects||[]).join(', ') + ' · $' + activeTutor.price + '/class';
-    document.getElementById('modalMsg').style.display = 'none';
-    document.getElementById('trialModal').classList.add('open');
+    requireAuthAndProfile().then(() => {
+      activeTutor = (window.__tutorCache||[]).find(t=>t.userId===userId);
+      if (!activeTutor) return;
+      const name = activeTutor.user.firstName + ' ' + activeTutor.user.lastName;
+      document.getElementById('modalTutorName').textContent = 'Book a trial with ' + name;
+      document.getElementById('modalTutorMeta').textContent = (activeTutor.subjects||[]).join(', ') + ' · $' + activeTutor.price + '/class';
+      document.getElementById('modalMsg').style.display = 'none';
+      document.getElementById('trialModal').classList.add('open');
+    });
   }
   function closeModal(){ document.getElementById('trialModal').classList.remove('open'); }
+  window.openModal = openModal;
+  window.closeModal = closeModal;
 
   document.getElementById('trialForm').addEventListener('submit', async e=>{
     e.preventDefault();
