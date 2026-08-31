@@ -77,9 +77,11 @@
 
 <div id="footer"></div>
 <script src="app.js"></script>
+<script src="authgate.js"></script>
 <script>
+requireAuthAndProfile().then(() => {
+
   const user = currentUser();
-  if (!user){ location.href = 'login.html?next=dashboard.html'; }
 
   document.getElementById('dashSidebarMount').innerHTML = sidebarHtml('dashboard');
   initSidebarWidgets();
@@ -102,9 +104,6 @@
   function tutorName(r){ return (r.tutor.firstName||'') + ' ' + (r.tutor.lastName||''); }
   function studentKey(r){ return r.student.id || r.student.email || studentName(r); }
 
-  // Whether THIS logged-in user is the one who received the request (as
-  // opposed to the one who sent it) — either side can now be the sender,
-  // so this can no longer be assumed just from the user's role.
   function iAmReceiver(r){
     return r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
   }
@@ -141,14 +140,7 @@
       </div>`;
   }
 
-  /* ---------- tutor dashboard ---------- */
-  /* Requests come back from the API newest-first (orderBy createdAt desc),
-     so requests[0] is always the most recent — no need to reverse anything. */
-
   function buildStudentsIndex(requests){
-    // A student "belongs" to the tutor once a request has been accepted at
-    // least once — whether it's still ongoing (ACCEPTED) or already taught
-    // (COMPLETED). Declined/pending-only requests don't count as a student yet.
     const relevant = requests.filter(r => r.status === 'ACCEPTED' || r.status === 'COMPLETED');
     const map = new Map();
     relevant.forEach(r=>{
@@ -228,7 +220,7 @@
       el.innerHTML = '<p style="color:var(--ink-2);">Nothing yet.</p>';
       return;
     }
-    const recent = allRequests.slice(0, 6); // already newest-first from the API
+    const recent = allRequests.slice(0, 6);
     el.innerHTML = recent.map(r=>{
       const verb = r.status === 'PENDING' ? (iAmReceiver(r) ? 'New trial request from' : 'You sent a request to')
                  : r.status === 'ACCEPTED' ? (iAmReceiver(r) ? 'You accepted' : 'Accepted by')
@@ -311,8 +303,6 @@
       : '<p style="color:var(--ink-2);">No pending requests.</p>';
   }
 
-  /* ---------- student dashboard (unchanged behaviour) ---------- */
-
   function renderStudentDashboard(requests){
     document.getElementById('studentReqCard').style.display = 'block';
     const el = document.getElementById('studentReqList');
@@ -320,8 +310,6 @@
       ? requests.map(requestItemHtml).join('')
       : '<p style="color:var(--ink-2);">You haven\'t booked a trial yet.</p>';
   }
-
-  /* ---------- shared load + respond ---------- */
 
   async function loadDashboard(){
     try{
@@ -356,6 +344,8 @@
   window.respond = respond;
 
   loadDashboard();
+
+});
 </script>
 <style>
   .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
