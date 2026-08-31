@@ -20,6 +20,7 @@
 <script>
   const user = currentUser();
   if (!user){ location.href = 'login.html?next=messages.html'; }
+  const isTutor = user.role === 'TUTOR';
 
   function avatarHtml(name, pictureUrl){
     return pictureUrl
@@ -66,49 +67,106 @@
     });
   }
 
+  /* ---------- shared sidebar (matches requests.html) ---------- */
+  function sidebar(active){
+    const findLink = isTutor
+      ? `<a href="students.html" class="side-link ${active==='find'?'active':''}">Find Students</a>`
+      : `<a href="tutors.html" class="side-link ${active==='find'?'active':''}">Find a Tutor</a>`;
+    return `
+      <a href="dashboard.html" class="side-link">Dashboard</a>
+      <a href="profile.html" class="side-link">Profile</a>
+      ${findLink}
+      <a href="requests.html" class="side-link ${active==='requests'?'active':''}" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Requests</span>
+        <span id="requestsBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+      </a>
+      <a href="messages.html" class="side-link ${active==='messages'?'active':''}" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Messages</span>
+        <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+      </a>
+      <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
+      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>`;
+  }
+
+  async function refreshNotifButtonState(){
+    const bell = document.getElementById('notifBell');
+    const label = document.getElementById('notifLabel');
+    if (!bell || !label) return;
+    try{
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = registration ? await registration.pushManager.getSubscription() : null;
+      if (subscription && Notification.permission === 'granted'){
+        bell.textContent = '🟢';
+        label.textContent = 'Notifications on';
+        label.style.color = '#1e7d43';
+      }
+    }catch(err){ /* ignore — button just stays in its default (off) state */ }
+  }
+
+  async function handleEnableNotifications(btn){
+    btn.disabled = true;
+    const bell = document.getElementById('notifBell');
+    const label = document.getElementById('notifLabel');
+    try{
+      await enablePushNotifications();
+      if (bell) bell.textContent = '🟢';
+      if (label){ label.textContent = 'Notifications on'; label.style.color = '#1e7d43'; }
+    }catch(err){
+      alert(err.message);
+      btn.disabled = false;
+    }
+  }
+
+  function refreshRequestsBadge(requests){
+    const badge = document.getElementById('requestsBadge');
+    if (!badge) return;
+    const pendingForMe = requests.filter(r => {
+      const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
+      return r.status === 'PENDING' && iAmReceiver;
+    }).length;
+    if (pendingForMe > 0){
+      badge.textContent = pendingForMe;
+      badge.style.display = 'inline-block';
+    }
+  }
+
+  async function refreshMessagesBadgeTotal(totalUnread){
+    const badge = document.getElementById('messagesBadge');
+    if (!badge) return;
+    if (totalUnread > 0){
+      badge.textContent = totalUnread;
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  /* ---------- one box per student/tutor: identity + full thread + reply ---------- */
   function conversationCard(c){
     const name = (c.other.firstName||'') + ' ' + (c.other.lastName||'');
     const roleLabel = c.otherRole === 'TUTOR' ? 'Tutor' : 'Student';
     const profile = c.otherProfile || {};
     const metaParts = [profile.country, (profile.languages||[]).join(' · ')].filter(Boolean);
     const hasMessage = !!c.lastMessage;
-    const mine = hasMessage && c.lastMessage.senderId === user.id;
-    const previewPrefix = mine ? 'You: ' : '';
-    const previewText = hasMessage ? (previewPrefix + c.lastMessage.content) : 'No messages yet — say hello.';
 
     return `
       <div class="conv-card" data-other="${c.otherId}">
         <div class="conv-top">
           ${avatarHtml(name, profile.pictureUrl)}
           <div class="conv-who">
+            ${metaParts.length ? `<div class="conv-meta">${metaParts.join(' · ')}</div>` : ''}
             <div class="conv-name-row">
               <strong>${name}</strong>
               <span class="role-chip">${roleLabel}</span>
             </div>
-            ${metaParts.length ? `<div class="conv-meta">${metaParts.join(' · ')}</div>` : ''}
           </div>
           <div class="conv-stamp">${hasMessage ? fmtStamp(c.lastMessage.createdAt) : ''}</div>
           ${c.unreadCount > 0 ? `<span class="conv-badge">${c.unreadCount}</span>` : ''}
         </div>
 
-        <div class="conv-preview-wrap">
-          <p class="conv-preview">${escapeHtml(previewText)}</p>
-          <span class="conv-readmore">Read more</span>
-        </div>
-
-        <div class="conv-thread" style="display:none;"></div>
+        <div class="conv-thread" data-loaded=""></div>
       </div>`;
-  }
-
-  function statusOfPreview(card){
-    const preview = card.querySelector('.conv-preview');
-    const readmore = card.querySelector('.conv-readmore');
-    // Only show "Read more" if the text is actually being clipped by the 2-line limit.
-    if (preview.scrollHeight > preview.clientHeight + 2){
-      readmore.style.display = 'inline-block';
-    } else {
-      readmore.style.display = 'none';
-    }
   }
 
   async function loadThreadInto(otherId, threadEl){
@@ -116,11 +174,9 @@
     try{
       const { messages } = await apiRequest('/messages/thread/' + otherId);
       renderThread(otherId, threadEl, messages);
-      // Reading the thread just cleared unread on the server — reflect that locally.
       const card = threadEl.closest('.conv-card');
       const badge = card.querySelector('.conv-badge');
       if (badge) badge.remove();
-      refreshMessagesBadge();
     }catch(err){
       threadEl.innerHTML = `<p style="color:var(--rose,#c0392b);font-size:.85rem;">${escapeHtml(err.message)}</p>`;
     }
@@ -139,7 +195,7 @@
       : '<p style="color:var(--ink-2);font-size:.85rem;">No messages yet — say hello.</p>';
 
     threadEl.innerHTML = `
-      <div class="chat-scroll" style="max-height:260px;overflow-y:auto;padding:10px;border:1px solid var(--line,#eee);border-radius:8px;margin:10px 0;">
+      <div class="chat-scroll">
         ${msgsHtml}
       </div>
       <p style="font-size:.75rem;color:var(--ink-2);margin:0 0 8px;">Tip: paste a Zoom, Google Meet, Skype or WhatsApp link here when you're ready for class — it becomes tappable automatically.</p>
@@ -170,63 +226,40 @@
     });
   }
 
-  function wireCard(card){
-    const otherId = card.dataset.other;
-    const threadEl = card.querySelector('.conv-thread');
-    const previewWrap = card.querySelector('.conv-preview-wrap');
-
-    function openThread(){
-      if (threadEl.style.display === 'block') return;
-      previewWrap.style.display = 'none';
-      threadEl.style.display = 'block';
-      if (!threadEl.dataset.loaded){
-        threadEl.dataset.loaded = '1';
-        loadThreadInto(otherId, threadEl);
-      }
-    }
-
-    card.querySelector('.conv-readmore').addEventListener('click', (e) => { e.stopPropagation(); openThread(); });
-    card.querySelector('.conv-top').addEventListener('click', openThread);
-    previewWrap.addEventListener('click', openThread);
-
-    return { openThread };
-  }
-
   async function load(){
     const wrap = document.getElementById('msgWrap');
-    // "open" carries the OTHER PERSON's user id (see requests.html's
-    // "Message X" link), not a trial request id.
     const openId = new URLSearchParams(location.search).get('open');
     try{
-      const { conversations } = await fetchConversations();
+      const [{ conversations }, { requests }] = await Promise.all([
+        fetchConversations(),
+        fetchMyTrialRequests(),
+      ]);
       let list = conversations;
 
       // Arrived via a "Message X" link for a person with no messages yet —
-      // they won't be in the list above (conversations only include people
-      // you've already messaged), so build a placeholder card for them
-      // from any trial request you share.
+      // build a placeholder card for them from a shared trial request.
       if (openId && !list.some(c => c.otherId === openId)){
-        try{
-          const { requests } = await fetchMyTrialRequests();
-          const isTutor = user.role === 'TUTOR';
-          const match = requests.find(r => (isTutor ? r.student.id : r.tutor.id) === openId);
-          if (match){
-            const other = isTutor ? match.student : match.tutor;
-            list = [{
-              otherId: other.id,
-              other: { id: other.id, firstName: other.firstName, lastName: other.lastName },
-              otherRole: isTutor ? 'STUDENT' : 'TUTOR',
-              otherProfile: null,
-              lastMessage: null,
-              unreadCount: 0,
-            }, ...list];
-          }
-        }catch(err){ /* ignore — the direct-open just won't have a stub card */ }
+        const match = requests.find(r => (isTutor ? r.student.id : r.tutor.id) === openId);
+        if (match){
+          const other = isTutor ? match.student : match.tutor;
+          list = [{
+            otherId: other.id,
+            other: { id: other.id, firstName: other.firstName, lastName: other.lastName },
+            otherRole: isTutor ? 'STUDENT' : 'TUTOR',
+            otherProfile: null,
+            lastMessage: null,
+            unreadCount: 0,
+          }, ...list];
+        }
       }
+
+      const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
       wrap.innerHTML = `
         <div class="profile-layout">
-          ${sidebarHtml('messages')}
+          <aside class="profile-sidebar">
+            ${sidebar('messages')}
+          </aside>
           <div class="profile-card" style="flex:1;min-width:0;">
             <h2 style="margin-top:0;">Messages</h2>
             <div id="convList">
@@ -236,16 +269,20 @@
             </div>
           </div>
         </div>`;
-      initSidebarWidgets();
 
-      const handles = {};
-      wrap.querySelectorAll('.conv-card').forEach(card => {
-        handles[card.dataset.other] = wireCard(card);
-        statusOfPreview(card);
-      });
+      refreshNotifButtonState();
+      refreshRequestsBadge(requests);
+      refreshMessagesBadgeTotal(totalUnread);
 
-      if (openId && handles[openId]){
-        handles[openId].openThread();
+      // Every box is always open and always loaded — no click needed.
+      const cards = wrap.querySelectorAll('.conv-card');
+      for (const card of cards){
+        const otherId = card.dataset.other;
+        const threadEl = card.querySelector('.conv-thread');
+        await loadThreadInto(otherId, threadEl);
+      }
+
+      if (openId){
         const targetCard = wrap.querySelector(`.conv-card[data-other="${openId}"]`);
         if (targetCard) targetCard.scrollIntoView({ behavior:'smooth', block:'start' });
       }
@@ -271,25 +308,24 @@
   .profile-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:24px; background:#fff; }
   @media (max-width:720px){ .profile-layout{ flex-direction:column; } .profile-sidebar{ width:100%; flex-direction:row; } }
 
-  #convList{ display:flex; flex-direction:column; gap:14px; margin-top:14px; }
+  #convList{ display:flex; flex-direction:column; gap:18px; margin-top:14px; }
 
   .conv-card{
     border:1px solid var(--line,#eee); border-radius:12px; padding:14px; background:#fff;
-    transition:box-shadow .15s;
   }
-  .conv-card:hover{ box-shadow:0 4px 14px rgba(0,0,0,.06); }
 
   .conv-top{
-    display:flex; align-items:flex-start; gap:12px; cursor:pointer; position:relative;
+    display:flex; align-items:flex-start; gap:12px; position:relative;
+    padding-bottom:10px; border-bottom:1px solid var(--line,#eee); margin-bottom:8px;
   }
   .conv-who{ flex:1; min-width:0; }
-  .conv-name-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .conv-meta{ font-size:.72rem; color:var(--ink-2,#888); }
+  .conv-name-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:2px; }
   .role-chip{
     font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.03em;
     background:var(--brand-light,#e8f5ec); color:var(--brand-dark,#0b2318);
     padding:2px 8px; border-radius:999px;
   }
-  .conv-meta{ font-size:.78rem; color:var(--ink-2,#888); margin-top:2px; }
   .conv-stamp{ font-size:.72rem; color:var(--ink-2,#999); white-space:nowrap; flex-shrink:0; }
   .conv-badge{
     position:absolute; top:-4px; right:-4px;
@@ -297,17 +333,10 @@
     border-radius:999px; padding:2px 7px; min-width:18px; text-align:center;
   }
 
-  .conv-preview-wrap{ margin-top:8px; cursor:pointer; }
-  .conv-preview{
-    margin:0; font-size:.88rem; color:var(--ink-2,#555);
-    display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;
+  .chat-scroll{
+    max-height:320px; overflow-y:auto; padding:10px;
+    border:1px solid var(--line,#eee); border-radius:8px; margin:0 0 10px;
   }
-  .conv-readmore{
-    display:none; font-size:.8rem; font-weight:600; color:var(--brand,#0e7c4a);
-    margin-top:4px;
-  }
-
-  .conv-thread{ border-top:1px solid var(--line,#eee); margin-top:10px; padding-top:4px; }
 </style>
 </body>
 </html>
