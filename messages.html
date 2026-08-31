@@ -42,8 +42,30 @@
     }catch(e){ return ''; }
   }
 
-  // One card per PERSON (c.otherId), not per trial request — so all of a
-  // person's messages (across however many trial requests) live in one box.
+  // Escapes HTML special characters so message text can never inject markup —
+  // needed before we selectively turn URLs back into real links below.
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Turns any http(s) link typed inside a message into a tappable link —
+  // this is how a Zoom / Google Meet / Skype / WhatsApp class link shared
+  // in chat becomes something the other person can just tap to join.
+  function linkifyMessage(text){
+    const escaped = escapeHtml(text);
+    return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+      const trailingPunct = /[.,!?)\]]+$/;
+      const trimmed = url.match(trailingPunct) ? url.replace(trailingPunct, '') : url;
+      const suffix = url.slice(trimmed.length);
+      return `<a href="${trimmed}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;font-weight:600;word-break:break-all;">${trimmed}</a>${suffix}`;
+    });
+  }
+
   function conversationCard(c){
     const name = (c.other.firstName||'') + ' ' + (c.other.lastName||'');
     const roleLabel = c.otherRole === 'TUTOR' ? 'Tutor' : 'Student';
@@ -70,7 +92,7 @@
         </div>
 
         <div class="conv-preview-wrap">
-          <p class="conv-preview">${previewText}</p>
+          <p class="conv-preview">${escapeHtml(previewText)}</p>
           <span class="conv-readmore">Read more</span>
         </div>
 
@@ -100,7 +122,7 @@
       if (badge) badge.remove();
       refreshMessagesBadge();
     }catch(err){
-      threadEl.innerHTML = `<p style="color:var(--rose,#c0392b);font-size:.85rem;">${err.message}</p>`;
+      threadEl.innerHTML = `<p style="color:var(--rose,#c0392b);font-size:.85rem;">${escapeHtml(err.message)}</p>`;
     }
   }
 
@@ -109,8 +131,8 @@
       ? messages.map(m => {
           const mine = m.senderId === user.id;
           return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:6px;">
-            <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--green,#1e7d43)':'#f0f0f0'};color:${mine?'#fff':'#222'};font-size:.88rem;">
-              ${m.content}
+            <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--green,#1e7d43)':'#f0f0f0'};color:${mine?'#fff':'#222'};font-size:.88rem;white-space:pre-wrap;">
+              ${linkifyMessage(m.content)}
             </div>
           </div>`;
         }).join('')
@@ -120,8 +142,9 @@
       <div class="chat-scroll" style="max-height:260px;overflow-y:auto;padding:10px;border:1px solid var(--line,#eee);border-radius:8px;margin:10px 0;">
         ${msgsHtml}
       </div>
+      <p style="font-size:.75rem;color:var(--ink-2);margin:0 0 8px;">Tip: paste a Zoom, Google Meet, Skype or WhatsApp link here when you're ready for class — it becomes tappable automatically.</p>
       <form class="chat-form" style="display:flex;gap:8px;">
-        <input type="text" placeholder="Write a message..." required style="flex:1;padding:8px 12px;border:1px solid var(--line,#ccc);border-radius:8px;">
+        <input type="text" placeholder="Write a message or paste a class link..." required style="flex:1;padding:8px 12px;border:1px solid var(--line,#ccc);border-radius:8px;">
         <button type="submit" class="btn primary small">Send</button>
       </form>`;
 
@@ -171,7 +194,7 @@
 
   async function load(){
     const wrap = document.getElementById('msgWrap');
-    // "open" now carries the OTHER PERSON's user id (see requests.html's
+    // "open" carries the OTHER PERSON's user id (see requests.html's
     // "Message X" link), not a trial request id.
     const openId = new URLSearchParams(location.search).get('open');
     try{
