@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payments — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="">
+<div id="nav"></div>
+
+<section style="padding:40px 0;">
+  <div class="container">
+    <div id="payWrap"><p style="color:var(--ink-2);">Loading...</p></div>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=payments.html'; }
+  const isTutor = user.role === 'TUTOR';
+
+  let acceptedRequests = [];
+  let myPayments = [];
+
+  function statusColor(status){
+    return { PENDING:'#b8860b', CONFIRMED:'#1e7d43', REJECTED:'#c0392b' }[status] || '#888';
+  }
+
+  function fmtMoney(amount, currency){
+    return `${currency || 'USD'} ${Number(amount).toFixed(2)}`;
+  }
+
+  function fmtDate(iso){
+    try{ return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+    catch(e){ return iso; }
+  }
+
+  function sidebar(active){
+    const findLink = isTutor
+      ? `<a href="students.html" class="side-link">Find Students</a>`
+      : `<a href="tutors.html" class="side-link">Find a Tutor</a>`;
+    return `
+      <a href="dashboard.html" class="side-link">Dashboard</a>
+      <a href="profile.html" class="side-link">Profile</a>
+      ${findLink}
+      <a href="requests.html" class="side-link">Requests</a>
+      <a href="messages.html" class="side-link">Messages</a>
+      <a href="payments.html" class="side-link ${active==='payments'?'active':''}">Payments</a>
+      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>`;
+  }
+
+  // ---------------- STUDENT: payment form ----------------
+  function paymentFormHtml(){
+    if (!acceptedRequests.length){
+      return `<p style="color:var(--ink-2);">You don't have any accepted classes yet. Once a tutor accepts your trial request, you'll be able to send a payment here.</p>`;
+    }
+    const tutorOptions = acceptedRequests.map(r =>
+      `<option value="${r.tutor.id}" data-request="${r.id}">${r.tutor.firstName} ${r.tutor.lastName}</option>`
+    ).join('');
+
+    return `
+      <form id="payForm" class="pay-form">
+        <div class="field">
+          <label>Tutor</label>
+          <select name="tutorSelect" required>${tutorOptions}</select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Amount</label>
+            <input type="number" name="amount" step="0.01" min="1" placeholder="e.g. 20.00" required>
+          </div>
+          <div class="field">
+            <label>Currency</label>
+            <select name="currency">
+              <option value="USD">USD</option>
+              <option value="PKR">PKR</option>
+              <option value="GBP">GBP</option>
+              <option value="EUR">EUR</option>
+              <option value="AED">AED</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Payment method used</label>
+          <select name="method" required>
+            <option value="bank_transfer">Bank transfer</option>
+            <option value="jazzcash">JazzCash</option>
+            <option value="easypaisa">Easypaisa</option>
+            <option value="wise">Wise</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Payment proof (screenshot)</label>
+          <input type="file" name="proof" accept="image/*" required>
+        </div>
+        <div id="payMsg" class="msg"></div>
+        <button type="submit" class="btn primary block">Submit Payment</button>
+      </form>`;
+  }
+
+  function historyListHtml(){
+    if (!myPayments.length){
+      return `<p style="color:var(--ink-2);">No payments yet.</p>`;
+    }
+    return myPayments.map(p => `
+      <div class="request-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+          <strong>${fmtMoney(p.amount, p.currency)}</strong>
+          <span style="color:${statusColor(p.status)};font-weight:700;font-size:.75rem;text-transform:uppercase;">${p.status}</span>
+        </div>
+        <div class="req-detail">Method: ${p.method.replace('_',' ')}</div>
+        <div class="req-detail">Submitted: ${fmtDate(p.createdAt)}</div>
+        ${p.status === 'CONFIRMED' && isTutor ? `<div class="req-detail">Your payout: ${fmtMoney(p.tutorPayout, p.currency)} (after 10% platform fee)</div>` : ''}
+        ${p.status === 'REJECTED' && p.adminNote ? `<div class="req-detail" style="color:var(--rose);">Reason: ${p.adminNote}</div>` : ''}
+        <div class="req-detail"><a href="${p.proofUrl}" target="_blank" rel="noopener">View proof</a></div>
+      </div>`).join('');
+  }
+
+  function renderAll(){
+    const wrap = document.getElementById('payWrap');
+    wrap.innerHTML = `
+      <div class="profile-layout">
+        <aside class="profile-sidebar">${sidebar('payments')}</aside>
+        <div class="profile-card" style="flex:1;">
+          ${!isTutor ? `
+            <h2 class="section-heading">Make a Payment</h2>
+            <div style="margin-bottom:28px;">${paymentFormHtml()}</div>
+          ` : ''}
+          <h2 class="section-heading">Payment History</h2>
+          <div class="request-list">${historyListHtml()}</div>
+        </div>
+      </div>`;
+
+    if (!isTutor){
+      const form = document.getElementById('payForm');
+      if (form) form.addEventListener('submit', onSubmitPayment);
+    }
+  }
+
+  async function onSubmitPayment(e){
+    e.preventDefault();
+    const form = e.target;
+    const msg = document.getElementById('payMsg');
+    const btn = form.querySelector('button[type="submit"]');
+    const select = form.querySelector('select[name="tutorSelect"]');
+    const selectedOption = select.options[select.selectedIndex];
+    const tutorId = selectedOption.value;
+    const requestId = selectedOption.dataset.request;
+    const amount = form.amount.value;
+    const currency = form.currency.value;
+    const method = form.method.value;
+    const file = form.proof.files[0];
+
+    msg.className = 'msg';
+    msg.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    try{
+      await submitPayment({ tutorId, amount, currency, method, requestId, file });
+      msg.className = 'msg success';
+      msg.textContent = 'Payment submitted! We will confirm it shortly.';
+      await loadPayments();
+      form.reset();
+    }catch(err){
+      msg.className = 'msg error';
+      msg.textContent = err.message;
+    }finally{
+      btn.disabled = false;
+      btn.textContent = 'Submit Payment';
+    }
+  }
+
+  async function loadPayments(){
+    myPayments = (await fetchMyPayments()) || [];
+    renderAll();
+  }
+
+  async function load(){
+    const wrap = document.getElementById('payWrap');
+    try{
+      if (!isTutor){
+        const { requests } = await fetchMyTrialRequests();
+        acceptedRequests = (requests || []).filter(r => r.status === 'ACCEPTED');
+      }
+      myPayments = (await fetchMyPayments()) || [];
+      renderAll();
+    }catch(err){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load payments: ${err.message}</p>`;
+    }
+  }
+
+  load();
+</script>
+<style>
+  .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
+  .profile-sidebar{ width:180px; flex-shrink:0; display:flex; flex-direction:column; gap:8px; border:1px solid var(--line,#eee); border-radius:10px; padding:12px; background:#fff; }
+  .side-link{ padding:10px 12px; border-radius:8px; text-decoration:none; color:var(--ink-2,#555); font-weight:500; font-size:.92rem; }
+  .side-link:hover{ background:#f4f4f4; }
+  .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
+  .profile-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:24px; background:#fff; }
+  @media (max-width:720px){ .profile-layout{ flex-direction:column; } .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; } }
+  .section-heading{ margin:0 0 12px; font-size:1.1rem; font-weight:800; }
+  .section-heading:not(:first-child){ margin-top:8px; }
+  .request-list{ display:flex; flex-direction:column; gap:14px; }
+  .request-card{ border:1px solid var(--line,#eee); border-radius:10px; padding:16px; background:#fff; }
+  .req-detail{ color:var(--ink-2); font-size:.85rem; margin-top:4px; }
+  .pay-form .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:560px){ .pay-form .field-row{ grid-template-columns:1fr; } }
+</style>
+</body>
+</html>
