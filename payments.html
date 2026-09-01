@@ -24,6 +24,7 @@
 
   let acceptedRequests = [];
   let myPayments = [];
+  let tutorProfiles = {}; // tutorId -> full profile (with paymentMethods)
 
   function statusColor(status){
     return { PENDING:'#b8860b', CONFIRMED:'#1e7d43', REJECTED:'#c0392b' }[status] || '#888';
@@ -65,8 +66,11 @@
       <form id="payForm" class="pay-form">
         <div class="field">
           <label>Tutor</label>
-          <select name="tutorSelect" required>${tutorOptions}</select>
+          <select name="tutorSelect" id="tutorSelect" required>${tutorOptions}</select>
         </div>
+
+        <div id="tutorPayBox" class="tutor-pay-box"></div>
+
         <div class="field-row">
           <div class="field">
             <label>Amount</label>
@@ -84,14 +88,8 @@
           </div>
         </div>
         <div class="field">
-          <label>Payment method used</label>
-          <select name="method" required>
-            <option value="bank_transfer">Bank transfer</option>
-            <option value="jazzcash">JazzCash</option>
-            <option value="easypaisa">Easypaisa</option>
-            <option value="wise">Wise</option>
-            <option value="other">Other</option>
-          </select>
+          <label>Which method did you send payment with?</label>
+          <select name="method" id="methodSelect" required></select>
         </div>
         <div class="field">
           <label>Payment proof (screenshot)</label>
@@ -100,6 +98,52 @@
         <div id="payMsg" class="msg"></div>
         <button type="submit" class="btn primary block">Submit Payment</button>
       </form>`;
+  }
+
+  function renderTutorPayInfo(tutorId){
+    const box = document.getElementById('tutorPayBox');
+    if (!box) return;
+    const profile = tutorProfiles[tutorId];
+    const methodSelect = document.getElementById('methodSelect');
+
+    if (!profile){
+      box.innerHTML = `<p class="pay-hint">Loading payment details...</p>`;
+      if (methodSelect) methodSelect.innerHTML = '';
+      return;
+    }
+
+    const methods = Array.isArray(profile.paymentMethods) ? profile.paymentMethods : [];
+
+    if (!methods.length){
+      box.innerHTML = `<p class="pay-hint warn">This tutor hasn't added their payment details yet. Please message them before sending any payment.</p>`;
+      if (methodSelect) methodSelect.innerHTML = '';
+      return;
+    }
+
+    const tutorName = profile.user ? `${profile.user.firstName} ${profile.user.lastName}` : 'this tutor';
+    box.innerHTML = `
+      <div class="pay-hint">
+        <strong>Send payment to ${tutorName} using one of these:</strong>
+        <ul class="pay-method-list">
+          ${methods.map(m => `<li><strong>${m.method}:</strong> ${m.details}</li>`).join('')}
+        </ul>
+      </div>`;
+
+    if (methodSelect){
+      methodSelect.innerHTML = methods.map(m => `<option value="${m.method}">${m.method}</option>`).join('');
+    }
+  }
+
+  async function loadTutorProfileIfNeeded(tutorId){
+    if (tutorProfiles[tutorId]) { renderTutorPayInfo(tutorId); return; }
+    renderTutorPayInfo(tutorId);
+    try{
+      const profile = await getPublicTutorProfile(tutorId);
+      tutorProfiles[tutorId] = profile;
+    }catch(err){
+      tutorProfiles[tutorId] = { paymentMethods: [] };
+    }
+    renderTutorPayInfo(tutorId);
   }
 
   function historyListHtml(){
@@ -137,7 +181,12 @@
 
     if (!isTutor){
       const form = document.getElementById('payForm');
-      if (form) form.addEventListener('submit', onSubmitPayment);
+      if (form){
+        form.addEventListener('submit', onSubmitPayment);
+        const select = document.getElementById('tutorSelect');
+        select.addEventListener('change', () => loadTutorProfileIfNeeded(select.value));
+        loadTutorProfileIfNeeded(select.value);
+      }
     }
   }
 
@@ -152,7 +201,14 @@
     const requestId = selectedOption.dataset.request;
     const amount = form.amount.value;
     const currency = form.currency.value;
-    const method = form.method.value;
+    const methodSelect = form.querySelector('select[name="method"]');
+
+    if (!methodSelect.value){
+      msg.className = 'msg error';
+      msg.textContent = 'This tutor has no payment method set up yet — please message them first.';
+      return;
+    }
+    const method = methodSelect.value;
     const file = form.proof.files[0];
 
     msg.className = 'msg';
@@ -211,6 +267,11 @@
   .req-detail{ color:var(--ink-2); font-size:.85rem; margin-top:4px; }
   .pay-form .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   @media (max-width:560px){ .pay-form .field-row{ grid-template-columns:1fr; } }
+  .tutor-pay-box{ margin: -6px 0 16px; }
+  .pay-hint{ background:#f6f8f6; border:1px solid var(--line,#eee); border-radius:10px; padding:12px 14px; font-size:.85rem; color:var(--ink-2); }
+  .pay-hint.warn{ background:#fff6ec; border-color:#f0d9b5; color:#8a5a1f; }
+  .pay-method-list{ margin:8px 0 0; padding-left:18px; }
+  .pay-method-list li{ margin-bottom:4px; color:var(--ink); }
 </style>
 </body>
 </html>
