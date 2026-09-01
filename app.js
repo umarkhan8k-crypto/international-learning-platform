@@ -278,13 +278,11 @@ async function fetchTutors(query = {}){
   return apiRequest('/tutors' + (params ? '?' + params : ''));
 }
 
-// NEW: mirrors fetchTutors, for the "Find Students" page
 async function fetchStudents(query = {}){
   const params = new URLSearchParams(query).toString();
   return apiRequest('/students' + (params ? '?' + params : ''));
 }
 
-// NEW: read a single tutor's or student's public profile (used by public-profile.html)
 async function getPublicTutorProfile(userId){
   const data = await apiRequest('/tutors/' + userId);
   return data.tutor;
@@ -298,7 +296,6 @@ async function createTrialRequestApi({ tutorId, preferredTime }){
   return apiRequest('/trial-requests', { method: 'POST', body: JSON.stringify({ tutorId, preferredTime }) });
 }
 
-// NEW: mirrors createTrialRequestApi — a tutor sending a trial request to a student
 async function createTutorRequestApi({ studentId, preferredTime }){
   return apiRequest('/trial-requests/from-tutor', { method: 'POST', body: JSON.stringify({ studentId, preferredTime }) });
 }
@@ -307,20 +304,15 @@ async function fetchMyTrialRequests(){
   return apiRequest('/trial-requests/mine');
 }
 
-// NEW: unread message count, used for the "Messages" sidebar badge
 async function getUnreadMessageCount(){
   const data = await apiRequest('/messages/unread-count');
   return data.count;
 }
 
-// NEW: list of the user's conversations — each with the other person's info,
-// public profile (for country/language/picture), last message, and unread count.
-// Used by messages.html. Confirm your backend exposes GET /messages/conversations.
 async function fetchConversations(){
   return apiRequest('/messages/conversations');
 }
 
-// NEW: short, unobtrusive "message sent" blip — no external audio file needed.
 function playMessageSound(){
   try{
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -338,14 +330,12 @@ function playMessageSound(){
   }catch(e){ /* ignore — sound is a nice-to-have, never block sending */ }
 }
 
-// UPDATED: accepting now requires the real class date & time (scheduledAt).
 async function updateTrialRequestStatus(id, status, scheduledAt){
   const payload = { status };
   if (scheduledAt) payload.scheduledAt = scheduledAt;
   return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
 }
 
-// NEW: tutor saves/updates the durable class link on an accepted request.
 async function saveMeetingLink(requestId, meetingLink){
   return apiRequest('/trial-requests/' + requestId + '/meeting-link', {
     method: 'PATCH',
@@ -353,9 +343,6 @@ async function saveMeetingLink(requestId, meetingLink){
   });
 }
 
-/* FIX: backend returns { profile: {...} } — unwrap it here so every caller
-   (profile-setup.html, profile.html, etc.) gets the actual profile object
-   directly, with real fields like country/phone/subjects populated. */
 async function getMyProfile(){
   const data = await apiRequest('/profile/me');
   return data.profile;
@@ -365,9 +352,51 @@ async function fetchStats(){
   return apiRequest('/stats');
 }
 
-// NEW: deactivate the logged-in user's own account
 async function deactivateAccount(){
   return apiRequest('/auth/deactivate', { method: 'POST' });
+}
+
+/* ---------- payments ---------- */
+
+// STUDENT: submit a payment with a proof screenshot (multipart upload)
+async function submitPayment({ tutorId, amount, currency, method, requestId, file }){
+  const token = localStorage.getItem('ilp_token');
+  const form = new FormData();
+  form.append('tutorId', tutorId);
+  form.append('amount', amount);
+  form.append('currency', currency || 'USD');
+  form.append('method', method);
+  if (requestId) form.append('requestId', requestId);
+  form.append('proof', file);
+
+  const res = await fetch(`${API_BASE}/payments`, {
+    method: 'POST',
+    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Payment submission failed.');
+  return data;
+}
+
+// Either side: this user's own payment history
+async function fetchMyPayments(){
+  return apiRequest('/payments/mine');
+}
+
+// ADMIN: payments waiting to be reviewed
+async function fetchPendingPayments(){
+  return apiRequest('/payments/pending');
+}
+
+// ADMIN: confirm a payment (server calculates the 10% commission)
+async function confirmPayment(id){
+  return apiRequest('/payments/' + id + '/confirm', { method: 'PATCH' });
+}
+
+// ADMIN: reject a payment, with an optional reason shown to the student
+async function rejectPayment(id, reason){
+  return apiRequest('/payments/' + id + '/reject', { method: 'PATCH', body: JSON.stringify({ reason }) });
 }
 
 /* ---------- push notifications ---------- */
