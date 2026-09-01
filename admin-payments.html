@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Payments — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="">
+<div id="nav"></div>
+
+<section style="padding:40px 0;">
+  <div class="container">
+    <h1 style="font-size:1.6rem;margin-bottom:20px;">Pending Payments</h1>
+    <div id="adminPayWrap"><p style="color:var(--ink-2);">Loading...</p></div>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=admin-payments.html'; }
+  if (user.role !== 'ADMIN'){ location.href = 'dashboard.html'; }
+
+  let pending = [];
+
+  function fmtMoney(amount, currency){
+    return `${currency || 'USD'} ${Number(amount).toFixed(2)}`;
+  }
+
+  function fmtDate(iso){
+    try{ return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+    catch(e){ return iso; }
+  }
+
+  function cardHtml(p){
+    return `
+      <div class="pay-card" data-id="${p.id}">
+        <div class="pay-card-top">
+          <div>
+            <strong>${p.student.firstName} ${p.student.lastName}</strong>
+            <span style="color:var(--ink-2);"> → </span>
+            <strong>${p.tutor.firstName} ${p.tutor.lastName}</strong>
+          </div>
+          <div class="pay-amount">${fmtMoney(p.amount, p.currency)}</div>
+        </div>
+        <div class="req-detail">Method: ${p.method.replace('_',' ')} · Submitted: ${fmtDate(p.createdAt)}</div>
+        <div style="margin:12px 0;">
+          <a href="${p.proofUrl}" target="_blank" rel="noopener">
+            <img src="${p.proofUrl}" alt="Payment proof" class="proof-thumb">
+          </a>
+        </div>
+        <div class="pay-actions">
+          <button class="btn primary small" data-confirm="${p.id}">Confirm</button>
+          <button class="btn ghost small" data-reject="${p.id}">Reject</button>
+        </div>
+      </div>`;
+  }
+
+  function render(){
+    const wrap = document.getElementById('adminPayWrap');
+    if (!pending.length){
+      wrap.innerHTML = `<p style="color:var(--ink-2);">No pending payments right now.</p>`;
+      return;
+    }
+    wrap.innerHTML = `<div class="pay-list">${pending.map(cardHtml).join('')}</div>`;
+
+    wrap.querySelectorAll('[data-confirm]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try{ await confirmPayment(btn.dataset.confirm); await load(); }
+        catch(err){ alert(err.message); btn.disabled = false; }
+      });
+    });
+
+    wrap.querySelectorAll('[data-reject]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const reason = prompt('Reason for rejecting this payment (shown to the student):') || '';
+        btn.disabled = true;
+        try{ await rejectPayment(btn.dataset.reject, reason); await load(); }
+        catch(err){ alert(err.message); btn.disabled = false; }
+      });
+    });
+  }
+
+  async function load(){
+    const wrap = document.getElementById('adminPayWrap');
+    try{
+      pending = (await fetchPendingPayments()) || [];
+      render();
+    }catch(err){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load payments: ${err.message}</p>`;
+    }
+  }
+
+  load();
+</script>
+<style>
+  .pay-list{ display:flex; flex-direction:column; gap:16px; }
+  .pay-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:18px; background:#fff; }
+  .pay-card-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .pay-amount{ font-weight:800; font-size:1.05rem; color:var(--brand-dark); }
+  .req-detail{ color:var(--ink-2); font-size:.85rem; margin-top:4px; }
+  .proof-thumb{ max-width:260px; max-height:260px; border-radius:8px; border:1px solid var(--line,#eee); }
+  .pay-actions{ display:flex; gap:10px; }
+</style>
+</body>
+</html>
