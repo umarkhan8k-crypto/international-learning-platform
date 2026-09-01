@@ -338,8 +338,19 @@ function playMessageSound(){
   }catch(e){ /* ignore — sound is a nice-to-have, never block sending */ }
 }
 
-async function updateTrialRequestStatus(id, status){
-  return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify({ status }) });
+// UPDATED: accepting now requires the real class date & time (scheduledAt).
+async function updateTrialRequestStatus(id, status, scheduledAt){
+  const payload = { status };
+  if (scheduledAt) payload.scheduledAt = scheduledAt;
+  return apiRequest('/trial-requests/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
+}
+
+// NEW: tutor saves/updates the durable class link on an accepted request.
+async function saveMeetingLink(requestId, meetingLink){
+  return apiRequest('/trial-requests/' + requestId + '/meeting-link', {
+    method: 'PATCH',
+    body: JSON.stringify({ meetingLink }),
+  });
 }
 
 /* FIX: backend returns { profile: {...} } — unwrap it here so every caller
