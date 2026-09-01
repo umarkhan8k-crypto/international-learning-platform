@@ -109,6 +109,15 @@
 <div id="t_langMount"></div>
 <div class="field-error"></div>
 </div>
+
+<div class="section-label">Payment details</div>
+<div class="field" id="f_t_payment">
+<label>How should students pay you?</label>
+<div class="hint" style="margin:-2px 0 8px;">Add at least one way for students to send you money (Bank Transfer, JazzCash, Easypaisa, Payoneer, Wise, PayPal, etc). Students will see these exact details when they pay you.</div>
+<div id="t_paymentMount"></div>
+<div class="field-error"></div>
+</div>
+
 <button type="submit" class="btn primary block">Create profile</button>
 </form>
 
@@ -177,12 +186,8 @@
 <script src="app.js"></script>
 <script>
 const user = currentUser();
-// Preserve ?next= (where the visitor was originally headed) when we have
-// to bounce an unauthenticated visitor to register.html first.
 if (!user){ location.href = 'register.html' + location.search; }
 
-// Where to send the user once the profile is saved: back to whatever
-// page they originally tried to reach, or profile.html by default.
 const nextAfterSave = new URLSearchParams(location.search).get('next') || 'profile.html';
 
 let tPic='', tAudio='', sPic='';
@@ -236,9 +241,75 @@ function requireChips(picker, fieldId, label){
 if (!picker.getValues().length){ setError(fieldId, `Please add at least one ${label}.`); return false; }
 clearError(fieldId); return true;
 }
+function requirePaymentMethods(picker, fieldId){
+if (!picker.getValues().length){ setError(fieldId, 'Please add at least one way for students to pay you.'); return false; }
+clearError(fieldId); return true;
+}
 function scrollToFirstError(){
 const first = document.querySelector('.field.invalid');
 if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+/* ---------- payment methods picker ---------- */
+const PAYMENT_METHOD_TYPES = ['Bank Transfer','JazzCash','Easypaisa','Payoneer','Wise','PayPal','Other'];
+
+function initPaymentMethodsPicker(mount){
+  const rowsEl = document.createElement('div');
+  rowsEl.style.cssText = 'display:flex;flex-direction:column;gap:10px;';
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.textContent = '+ Add payment method';
+  addBtn.className = 'btn ghost small';
+  addBtn.style.cssText = 'margin-top:8px;';
+  mount.appendChild(rowsEl);
+  mount.appendChild(addBtn);
+
+  let values = [];
+
+  function renderRows(){
+    rowsEl.innerHTML = '';
+    values.forEach((v, idx) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;';
+
+      const select = document.createElement('select');
+      select.style.cssText = 'width:150px;padding:10px 12px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;';
+      PAYMENT_METHOD_TYPES.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t; opt.textContent = t;
+        if (t === v.method) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener('change', () => { values[idx].method = select.value; });
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'e.g. 0300-1234567 (Account title: Uzair Khan)';
+      input.value = v.details || '';
+      input.style.cssText = 'flex:1;min-width:180px;padding:10px 12px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;';
+      input.addEventListener('input', () => { values[idx].details = input.value; });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Remove';
+      removeBtn.style.cssText = 'width:36px;height:36px;border-radius:8px;border:1px solid var(--line,#ccc);background:#fff;color:#c0392b;cursor:pointer;flex-shrink:0;';
+      removeBtn.addEventListener('click', () => { values.splice(idx,1); renderRows(); });
+
+      row.appendChild(select); row.appendChild(input); row.appendChild(removeBtn);
+      rowsEl.appendChild(row);
+    });
+  }
+
+  addBtn.addEventListener('click', () => {
+    values.push({ method: PAYMENT_METHOD_TYPES[0], details: '' });
+    renderRows();
+  });
+
+  return {
+    getValues: () => values.filter(v => v.details && v.details.trim()).map(v => ({ method: v.method, details: v.details.trim() })),
+    setValues: (vals) => { values = (vals || []).map(v => ({ method: v.method, details: v.details })); renderRows(); },
+  };
 }
 
 if (user.role === 'TUTOR'){
@@ -254,6 +325,7 @@ const tPhone = initPhonePicker(document.getElementById('t_phoneMount'));
 const tWa = initPhonePicker(document.getElementById('t_waMount'));
 const tLang = initChipPicker(document.getElementById('t_langMount'), {options: LANGUAGES, placeholder:'Tap to select the languages you speak'});
 const tSubjects = initSubjectPicker(document.getElementById('t_subjectsMount'), {options:['Qaida','Recitation','Hifz','Tajweed','Arabic'], placeholder:'Tap to choose subjects'});
+const tPayment = initPaymentMethodsPicker(document.getElementById('t_paymentMount'));
 
 const tPicBox = initUploadBox(document.getElementById('t_picMount'), {
   accept:'image/*', kind:'image', label:'Tap to upload a photo', previewShape:'circle',
@@ -316,6 +388,7 @@ getMyProfile().then(profile => {
   if (profile.bio) document.getElementById('t_bio').value = profile.bio;
   if (profile.price) document.getElementById('t_price').value = profile.price;
   if (profile.languages) tLang.setValues(profile.languages);
+  if (profile.paymentMethods && profile.paymentMethods.length) tPayment.setValues(profile.paymentMethods);
 }).catch(()=>{ /* no existing profile yet — fine for first-time setup */ });
 
 document.getElementById('tutorForm').addEventListener('submit', (e)=>{
@@ -340,6 +413,7 @@ ok = requireText('t_bio','f_t_bio','Bio') && ok;
 const priceVal = document.getElementById('t_price').value;
 if (!priceVal || Number(priceVal) <= 0){ setError('f_t_price','Please enter a valid price.'); ok = false; } else { clearError('f_t_price'); }
 ok = requireChips(tLang,'f_t_lang','language') && ok;
+ok = requirePaymentMethods(tPayment,'f_t_payment') && ok;
 
 if (!ok){ scrollToFirstError(); return; }
 
@@ -364,6 +438,7 @@ qualification: document.getElementById('t_qualification').value.trim(),
 bio: document.getElementById('t_bio').value.trim(),
 price: priceVal,
 languages: tLang.getValues(),
+paymentMethods: tPayment.getValues(),
 }).then(()=>{ location.href = nextAfterSave; }).catch(err=>{
   const msg = document.getElementById('setupMsg');
   msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
