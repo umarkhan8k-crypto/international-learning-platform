@@ -22,6 +22,11 @@
   if (!user){ location.href = 'login.html?next=requests.html'; }
   const isTutor = user.role === 'TUTOR';
 
+  // Requests whose meeting-link box is currently in "edit" mode — local UI
+  // state only, doesn't touch the server until the form is submitted.
+  const editingLinkIds = new Set();
+  let lastRequests = [];
+
   function statusBadge(status){
     const map = { PENDING:'#b8860b', ACCEPTED:'#1e7d43', DECLINED:'#c0392b', COMPLETED:'#2e5aa8' };
     return `<span style="color:${map[status]||'#888'};font-weight:700;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;">${status}</span>`;
@@ -37,26 +42,76 @@
     return r.initiatedBy === 'TUTOR' ? 'Message: ' + r.preferredTime : 'Preferred: ' + r.preferredTime;
   }
 
-  // Accepted requests — plain info card, no actions.
+  function fmtDateTime(iso){
+    try{ return new Date(iso).toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+    catch(e){ return iso; }
+  }
+
+  // Quick shortcuts that open each platform's "start a new meeting/chat" page
+  // in a new tab — the tutor copies the link it gives them into the box below.
+  function quickLaunchChips(){
+    return `
+      <div class="quick-launch-inline">
+        <a href="https://zoom.us/start" target="_blank" rel="noopener" class="ql-chip ql-zoom">🎥 Zoom</a>
+        <a href="https://meet.google.com/new" target="_blank" rel="noopener" class="ql-chip ql-meet">📅 Meet</a>
+        <a href="https://web.skype.com/" target="_blank" rel="noopener" class="ql-chip ql-skype">☎️ Skype</a>
+        <a href="https://web.whatsapp.com/" target="_blank" rel="noopener" class="ql-chip ql-whatsapp">💬 WhatsApp</a>
+      </div>`;
+  }
+
+  // The meeting-link area shown on an ACCEPTED card. Three states:
+  //   1. Link saved, not editing  -> "Join Class" button (+ "Change link" for the tutor)
+  //   2. No link yet, I'm the tutor -> shortcuts + a form to paste/save one
+  //   3. No link yet, I'm the student -> a waiting note
+  function meetingLinkBlock(r){
+    const editing = editingLinkIds.has(r.id);
+
+    if (r.meetingLink && !editing){
+      return `
+        <div class="meeting-block">
+          <a href="${r.meetingLink}" target="_blank" rel="noopener" class="btn primary small join-class-btn">🎬 Join Class</a>
+          ${isTutor ? `<button type="button" class="btn ghost small" data-edit-link="${r.id}">Change link</button>` : ''}
+        </div>`;
+    }
+
+    if (!isTutor){
+      return `<p class="req-detail" style="margin-top:8px;">Waiting for your tutor to add the class link.</p>`;
+    }
+
+    return `
+      <div class="meeting-setup">
+        ${quickLaunchChips()}
+        <form class="link-form" data-save-link="${r.id}">
+          <input type="url" placeholder="Paste the class link here..." required value="${r.meetingLink || ''}">
+          <button type="submit" class="btn primary small">Save link</button>
+          ${editing ? `<button type="button" class="btn ghost small" data-cancel-edit="${r.id}">Cancel</button>` : ''}
+        </form>
+      </div>`;
+  }
+
+  // Accepted requests — class time + the durable meeting link box.
   function acceptedCard(r){
     return `
       <div class="request-card" data-id="${r.id}">
         <strong>${otherNameOf(r)}</strong>
         <div class="req-detail">${detailOf(r)}</div>
+        ${r.scheduledAt ? `<div class="req-detail">🗓️ Class time: ${fmtDateTime(r.scheduledAt)}</div>` : ''}
+        ${meetingLinkBlock(r)}
       </div>`;
   }
 
-  // Pending requests — Accept/Decline for whoever needs to respond,
-  // a "waiting" note for whoever sent it.
+  // Pending requests — Accept (with class date/time) / Decline for whoever
+  // needs to respond, a "waiting" note for whoever sent it.
   function pendingCard(r){
     const otherName = otherNameOf(r);
     const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
     const actions = iAmReceiver
-      ? `<div style="display:flex;gap:8px;margin-top:10px;">
-           <button class="btn primary small" data-accept="${r.id}">Accept</button>
-           <button class="btn ghost small" data-decline="${r.id}">Decline</button>
-         </div>`
-      : `<p style="color:var(--ink-2);font-size:.85rem;margin-top:8px;">Waiting for ${otherName.split(' ')[0]} to respond.</p>`;
+      ? `<form class="accept-form" data-accept-form="${r.id}">
+           <input type="datetime-local" required>
+           <button type="submit" class="btn primary small">Accept</button>
+         </form>
+         <button type="button" class="btn ghost small" data-decline="${r.id}" style="margin-top:8px;">Decline</button>`
+      : `<p class="req-detail" style="margin-top:8px;">Waiting for ${otherName.split(' ')[0]} to respond.</p>`;
 
     return `
       <div class="request-card" data-id="${r.id}">
@@ -76,6 +131,7 @@
           ${statusBadge(r.status)}
         </div>
         <div class="req-detail">${detailOf(r)}</div>
+        ${r.status === 'COMPLETED' && r.meetingLink ? `<div class="req-detail">Link used: <a href="${r.meetingLink}" target="_blank" rel="noopener">${r.meetingLink}</a></div>` : ''}
       </div>`;
   }
 
@@ -99,9 +155,6 @@
       <a href="#" class="side-link" onclick="logout();return false;">Log out</a>`;
   }
 
-  // Checks whether this browser already has an active push subscription, and
-  // colors the bell green + updates the label if so — so the state is correct
-  // on page load, not just right after the button is clicked.
   async function refreshNotifButtonState(){
     const bell = document.getElementById('notifBell');
     const label = document.getElementById('notifLabel');
@@ -132,7 +185,6 @@
     }
   }
 
-  // Counts how many requests are waiting on THIS user's response.
   function refreshRequestsBadge(requests){
     const badge = document.getElementById('requestsBadge');
     if (!badge) return;
@@ -158,59 +210,106 @@
     }catch(err){ /* ignore — badge just stays hidden */ }
   }
 
+  // Rebuilds the whole panel from `lastRequests` — used both after a fresh
+  // fetch and for local-only UI changes (like toggling "Change link") that
+  // don't need to hit the server.
+  function renderAll(){
+    const wrap = document.getElementById('reqWrap');
+    const accepted = lastRequests.filter(r => r.status === 'ACCEPTED');
+    const pending  = lastRequests.filter(r => r.status === 'PENDING');
+    const past     = lastRequests.filter(r => r.status === 'COMPLETED' || r.status === 'DECLINED');
+
+    wrap.innerHTML = `
+      <div class="profile-layout">
+        <aside class="profile-sidebar">
+          ${sidebar('requests')}
+        </aside>
+        <div class="profile-card" style="flex:1;">
+
+          <h2 class="section-heading accepted-heading">Accepted Requests</h2>
+          <div class="request-list">
+            ${accepted.length ? accepted.map(acceptedCard).join('') : '<p style="color:var(--ink-2);">No accepted requests yet.</p>'}
+          </div>
+
+          <h2 class="section-heading pending-heading">Pending Requests</h2>
+          <div class="request-list">
+            ${pending.length ? pending.map(pendingCard).join('') : '<p style="color:var(--ink-2);">No pending requests.</p>'}
+          </div>
+
+          ${past.length ? `
+          <h2 class="section-heading past-heading">Past Requests</h2>
+          <div class="request-list">
+            ${past.map(pastCard).join('')}
+          </div>` : ''}
+
+        </div>
+      </div>`;
+
+    refreshNotifButtonState();
+    refreshRequestsBadge(lastRequests);
+    refreshMessagesBadge();
+    wireActions(wrap);
+  }
+
+  function wireActions(wrap){
+    wrap.querySelectorAll('[data-accept-form]').forEach(form => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = form.dataset.acceptForm;
+        const input = form.querySelector('input[type="datetime-local"]');
+        const btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try{
+          await updateTrialRequestStatus(id, 'ACCEPTED', new Date(input.value).toISOString());
+          await load();
+        }catch(err){ alert(err.message); btn.disabled = false; }
+      });
+    });
+
+    wrap.querySelectorAll('[data-decline]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try{ await updateTrialRequestStatus(btn.dataset.decline, 'DECLINED'); await load(); }
+        catch(err){ alert(err.message); btn.disabled = false; }
+      });
+    });
+
+    wrap.querySelectorAll('[data-save-link]').forEach(form => {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = form.dataset.saveLink;
+        const input = form.querySelector('input[type="url"]');
+        const btn = form.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try{
+          await saveMeetingLink(id, input.value.trim());
+          editingLinkIds.delete(id);
+          await load();
+        }catch(err){ alert(err.message); btn.disabled = false; }
+      });
+    });
+
+    wrap.querySelectorAll('[data-edit-link]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editingLinkIds.add(btn.dataset.editLink);
+        renderAll();
+      });
+    });
+
+    wrap.querySelectorAll('[data-cancel-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editingLinkIds.delete(btn.dataset.cancelEdit);
+        renderAll();
+      });
+    });
+  }
+
   async function load(){
     const wrap = document.getElementById('reqWrap');
     try{
       const { requests } = await fetchMyTrialRequests();
-
-      const accepted = requests.filter(r => r.status === 'ACCEPTED');
-      const pending  = requests.filter(r => r.status === 'PENDING');
-      const past     = requests.filter(r => r.status === 'COMPLETED' || r.status === 'DECLINED');
-
-      wrap.innerHTML = `
-        <div class="profile-layout">
-          <aside class="profile-sidebar">
-            ${sidebar('requests')}
-          </aside>
-          <div class="profile-card" style="flex:1;">
-
-            <h2 class="section-heading accepted-heading">Accepted Requests</h2>
-            <div class="request-list">
-              ${accepted.length ? accepted.map(acceptedCard).join('') : '<p style="color:var(--ink-2);">No accepted requests yet.</p>'}
-            </div>
-
-            <h2 class="section-heading pending-heading">Pending Requests</h2>
-            <div class="request-list">
-              ${pending.length ? pending.map(pendingCard).join('') : '<p style="color:var(--ink-2);">No pending requests.</p>'}
-            </div>
-
-            ${past.length ? `
-            <h2 class="section-heading past-heading">Past Requests</h2>
-            <div class="request-list">
-              ${past.map(pastCard).join('')}
-            </div>` : ''}
-
-          </div>
-        </div>`;
-
-      refreshNotifButtonState();
-      refreshRequestsBadge(requests);
-      refreshMessagesBadge();
-
-      wrap.querySelectorAll('[data-accept]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          try{ await updateTrialRequestStatus(btn.dataset.accept, 'ACCEPTED'); load(); }
-          catch(err){ alert(err.message); btn.disabled = false; }
-        });
-      });
-      wrap.querySelectorAll('[data-decline]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          try{ await updateTrialRequestStatus(btn.dataset.decline, 'DECLINED'); load(); }
-          catch(err){ alert(err.message); btn.disabled = false; }
-        });
-      });
+      lastRequests = requests;
+      renderAll();
     }catch(err){
       wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load your requests: ${err.message}</p>`;
     }
@@ -239,6 +338,26 @@
   .request-list{ display:flex; flex-direction:column; gap:14px; }
   .request-card{ border:1px solid var(--line,#eee); border-radius:10px; padding:16px; background:#fff; }
   .req-detail{ color:var(--ink-2); font-size:.85rem; margin-top:4px; }
+
+  .accept-form{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+  .accept-form input[type="datetime-local"]{ padding:8px 10px; border:1px solid var(--line,#ccc); border-radius:8px; font-size:.85rem; }
+
+  .meeting-block{ display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .join-class-btn{ background:#1e7d43 !important; }
+
+  .meeting-setup{ margin-top:10px; }
+  .quick-launch-inline{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .ql-chip{
+    display:inline-flex; align-items:center; gap:4px; padding:6px 10px; border-radius:999px;
+    color:#fff; font-size:.78rem; font-weight:600; text-decoration:none;
+  }
+  .ql-zoom{ background:#2D8CFF; }
+  .ql-meet{ background:#00897B; }
+  .ql-skype{ background:#00AFF0; }
+  .ql-whatsapp{ background:#25D366; }
+
+  .link-form{ display:flex; flex-wrap:wrap; gap:8px; }
+  .link-form input[type="url"]{ flex:1; min-width:180px; padding:8px 12px; border:1px solid var(--line,#ccc); border-radius:8px; font-size:.85rem; }
 </style>
 </body>
 </html>
