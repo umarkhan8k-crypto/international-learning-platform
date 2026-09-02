@@ -56,18 +56,6 @@
       </div>`;
   }
 
-  function quickLaunchBox(){
-    return `
-      <div class="quick-launch-box">
-        <div class="qlb-title">Quick start a class</div>
-        <a href="https://zoom.us/start" target="_blank" rel="noopener" class="ql-chip ql-zoom">🎥 Zoom</a>
-        <a href="https://meet.google.com/new" target="_blank" rel="noopener" class="ql-chip ql-meet">📅 Google Meet</a>
-        <a href="https://teams.microsoft.com/start" target="_blank" rel="noopener" class="ql-chip ql-teams">👥 Teams</a>
-        <a href="https://web.skype.com/" target="_blank" rel="noopener" class="ql-chip ql-skype">☎️ Skype</a>
-        <a href="https://web.whatsapp.com/" target="_blank" rel="noopener" class="ql-chip ql-whatsapp">💬 WhatsApp</a>
-      </div>`;
-  }
-
   function meetingLinkBlock(r){
     const editing = editingLinkIds.has(r.id);
 
@@ -153,9 +141,7 @@
       </a>
       <a href="payments.html" class="side-link">Payments</a>
       <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
-      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
-
-      ${quickLaunchBox()}`;
+      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>`;
   }
 
   async function refreshNotifButtonState(){
@@ -328,9 +314,6 @@
   .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
   .profile-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:24px; background:#fff; }
   @media (max-width:720px){ .profile-layout{ flex-direction:column; } .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; } }
-
-  .quick-launch-box{ margin-top:8px; padding-top:10px; border-top:1px solid var(--line,#eee); display:flex; flex-direction:column; gap:6px; width:100%; }
-  .qlb-title{ font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2,#888); margin-bottom:2px; }
 
   .section-heading{ margin:0 0 12px; font-size:1.1rem; font-weight:800; }
   .section-heading:not(:first-child){ margin-top:28px; }
