@@ -28,7 +28,6 @@
       : `<div class="avatar">${initials(name)}</div>`;
   }
 
-  // Small "Aug 30, 5:42 PM" / "Today, 5:42 PM" style stamp for the top of a card.
   function fmtStamp(iso){
     try{
       const d = new Date(iso);
@@ -43,8 +42,6 @@
     }catch(e){ return ''; }
   }
 
-  // Escapes HTML special characters so message text can never inject markup —
-  // needed before we selectively turn URLs back into real links below.
   function escapeHtml(str){
     return String(str)
       .replace(/&/g, '&amp;')
@@ -54,9 +51,6 @@
       .replace(/'/g, '&#39;');
   }
 
-  // Turns any http(s) link typed inside a message into a tappable link —
-  // this is how a Zoom / Google Meet / Skype / WhatsApp class link shared
-  // in chat becomes something the other person can just tap to join.
   function linkifyMessage(text){
     const escaped = escapeHtml(text);
     return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
@@ -67,7 +61,18 @@
     });
   }
 
-  /* ---------- shared sidebar (matches requests.html) ---------- */
+  function quickLaunchBox(){
+    return `
+      <div class="quick-launch-box">
+        <div class="qlb-title">Quick start a class</div>
+        <a href="https://zoom.us/start" target="_blank" rel="noopener" class="ql-chip ql-zoom">🎥 Zoom</a>
+        <a href="https://meet.google.com/new" target="_blank" rel="noopener" class="ql-chip ql-meet">📅 Google Meet</a>
+        <a href="https://teams.microsoft.com/start" target="_blank" rel="noopener" class="ql-chip ql-teams">👥 Teams</a>
+        <a href="https://web.skype.com/" target="_blank" rel="noopener" class="ql-chip ql-skype">☎️ Skype</a>
+        <a href="https://web.whatsapp.com/" target="_blank" rel="noopener" class="ql-chip ql-whatsapp">💬 WhatsApp</a>
+      </div>`;
+  }
+
   function sidebar(active){
     const findLink = isTutor
       ? `<a href="students.html" class="side-link ${active==='find'?'active':''}">Find Students</a>`
@@ -84,8 +89,11 @@
         <span>Messages</span>
         <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
       </a>
+      <a href="payments.html" class="side-link">Payments</a>
       <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
-      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>`;
+      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
+
+      ${quickLaunchBox()}`;
   }
 
   async function refreshNotifButtonState(){
@@ -142,7 +150,6 @@
     }
   }
 
-  /* ---------- one box per student/tutor: identity + full thread + reply ---------- */
   function conversationCard(c){
     const name = (c.other.firstName||'') + ' ' + (c.other.lastName||'');
     const roleLabel = c.otherRole === 'TUTOR' ? 'Tutor' : 'Student';
@@ -236,8 +243,6 @@
       ]);
       let list = conversations;
 
-      // Arrived via a "Message X" link for a person with no messages yet —
-      // build a placeholder card for them from a shared trial request.
       if (openId && !list.some(c => c.otherId === openId)){
         const match = requests.find(r => (isTutor ? r.student.id : r.tutor.id) === openId);
         if (match){
@@ -274,7 +279,6 @@
       refreshRequestsBadge(requests);
       refreshMessagesBadgeTotal(totalUnread);
 
-      // Every box is always open and always loaded — no click needed.
       const cards = wrap.querySelectorAll('.conv-card');
       for (const card of cards){
         const otherId = card.dataset.other;
@@ -306,7 +310,16 @@
   .side-link:hover{ background:#f4f4f4; }
   .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
   .profile-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:24px; background:#fff; }
-  @media (max-width:720px){ .profile-layout{ flex-direction:column; } .profile-sidebar{ width:100%; flex-direction:row; } }
+  @media (max-width:720px){ .profile-layout{ flex-direction:column; } .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; } }
+
+  .quick-launch-box{ margin-top:8px; padding-top:10px; border-top:1px solid var(--line,#eee); display:flex; flex-direction:column; gap:6px; width:100%; }
+  .qlb-title{ font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2,#888); margin-bottom:2px; }
+  .ql-chip{ display:flex; align-items:center; gap:6px; padding:8px 10px; border-radius:8px; color:#fff; font-size:.82rem; font-weight:600; text-decoration:none; }
+  .ql-zoom{ background:#2D8CFF; }
+  .ql-meet{ background:#00897B; }
+  .ql-teams{ background:#5059C9; }
+  .ql-skype{ background:#00AFF0; }
+  .ql-whatsapp{ background:#25D366; }
 
   #convList{ display:flex; flex-direction:column; gap:18px; margin-top:14px; }
 
