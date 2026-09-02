@@ -58,10 +58,6 @@
 <script src="app.js"></script>
 <script src="authgate.js"></script>
 <script>
-  // NOTE: this page is intentionally public — anyone (logged in or not)
-  // can browse tutors. Only the "Book trial" action below requires a
-  // logged-in account with a complete profile (see openModal).
-
   const grid = document.getElementById('tutorGrid');
   const empty = document.getElementById('emptyState');
   const loading = document.getElementById('loadingState');
@@ -157,10 +153,6 @@
   });
   render();
 
-  // Booking a trial is the one action on this public page that requires
-  // a logged-in account with a complete profile. requireAuthAndProfile()
-  // pops the auth-gate overlay right here (no page navigation) if needed,
-  // and only opens the booking modal once the visitor is fully set up.
   function openModal(userId){
     if (alreadyRequestedIds.has(userId)){ return; }
     requireAuthAndProfile().then(() => {
@@ -190,7 +182,7 @@
       msg.className = 'msg success';
       msg.textContent = 'Trial request sent! Track its status from your dashboard.';
       msg.style.display = 'block';
-      playRequestSentSound();
+      playMessageSound();
       document.getElementById('trialForm').reset();
       alreadyRequestedIds.add(activeTutor.userId);
       setTimeout(() => { closeModal(); render(); }, 1600);
