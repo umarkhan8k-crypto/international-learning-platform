@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Flagged Messages — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="">
+<div id="nav"></div>
+
+<section style="padding:40px 0;">
+  <div class="container">
+    <h1 style="font-size:1.4rem;margin-bottom:8px;">Flagged Off-Platform Attempts</h1>
+    <p style="color:var(--ink-2);font-size:.9rem;margin-bottom:24px;max-width:60ch;">
+      These are messages that were automatically blocked because they tried to share a phone number,
+      payment account, email, or external contact link. Repeat offenders are worth a warning or a closer look.
+    </p>
+    <div id="flagsWrap"><p style="color:var(--ink-2);">Loading...</p></div>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=admin-flags.html'; }
+  if (user.role !== 'ADMIN'){ location.href = 'dashboard.html'; }
+
+  function escapeHtml(str){
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function fmtDate(iso){
+    try{ return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
+    catch(e){ return iso; }
+  }
+
+  function reasonLabel(reason){
+    return {
+      'payment-or-contact-app': 'Payment app name',
+      'phone-number': 'Phone number',
+      'email': 'Email address',
+      'external-link': 'External link',
+    }[reason] || reason;
+  }
+
+  function flagCardHtml(f, count){
+    const senderName = f.sender ? `${f.sender.firstName} ${f.sender.lastName}` : 'Unknown user';
+    return `
+      <div class="flag-card">
+        <div class="flag-top">
+          <div>
+            <strong>${escapeHtml(senderName)}</strong>
+            ${f.sender ? `<span class="flag-role">${f.sender.role}</span>` : ''}
+            ${count > 1 ? `<span class="flag-count">${count} attempts</span>` : ''}
+          </div>
+          <span class="flag-reason">${reasonLabel(f.reason)}</span>
+        </div>
+        <div class="flag-snippet">"${escapeHtml(f.snippet)}"</div>
+        <div class="flag-meta">${f.sender ? escapeHtml(f.sender.email) : ''} · ${fmtDate(f.createdAt)}</div>
+      </div>`;
+  }
+
+  async function load(){
+    const wrap = document.getElementById('flagsWrap');
+    try{
+      const data = await apiRequest('/messages/admin/flags');
+      const { flags, counts } = data;
+      if (!flags.length){
+        wrap.innerHTML = `<p style="color:var(--ink-2);">No flagged attempts — nobody has tried to share off-platform contact info yet.</p>`;
+        return;
+      }
+      wrap.innerHTML = `<div class="flag-list">${flags.map(f => flagCardHtml(f, counts[f.senderId] || 1)).join('')}</div>`;
+    }catch(err){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load: ${err.message}</p>`;
+    }
+  }
+
+  load();
+</script>
+<style>
+  .flag-list{ display:flex; flex-direction:column; gap:12px; }
+  .flag-card{ border:1px solid var(--line,#eee); border-radius:10px; padding:14px 16px; background:#fff; }
+  .flag-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  .flag-role{ font-size:.7rem; color:var(--ink-2,#888); margin-left:8px; text-transform:uppercase; }
+  .flag-count{ font-size:.72rem; background:#fdecea; color:#c0392b; font-weight:700; padding:2px 8px; border-radius:999px; margin-left:8px; }
+  .flag-reason{ font-size:.72rem; background:#fff6ec; color:#8a5a1f; font-weight:700; padding:3px 10px; border-radius:999px; }
+  .flag-snippet{ font-size:.88rem; color:var(--ink,#333); margin-top:8px; font-style:italic; word-break:break-word; }
+  .flag-meta{ font-size:.78rem; color:var(--ink-2,#888); margin-top:6px; }
+</style>
+</body>
+</html>
