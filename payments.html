@@ -35,7 +35,7 @@
   let acceptedRequests = [];
   let myPayments = [];
   let myProfile = null;
-  let tutorProfiles = {}; // tutorId -> full profile (with paymentMethods)
+  let platformMethods = []; // NEW: the platform's own accounts — this is who students pay
 
   // Apps that have ONE official Android package (used for the mobile "Open" button).
   const APP_PACKAGES = {
@@ -47,8 +47,6 @@
   };
 
   // Methods that ALSO have a real website usable on a computer.
-  // JazzCash / Easypaisa / NayaPay have no such website for ordinary customers,
-  // so on a computer those show a QR code instead (scan with your phone).
   const DESKTOP_URLS = {
     'PayPal': 'https://www.paypal.com/signin',
     'Payoneer': 'https://myaccount.payoneer.com/',
@@ -75,6 +73,10 @@
 
   function statusColor(status){
     return { PENDING:'#b8860b', CONFIRMED:'#1e7d43', REJECTED:'#c0392b' }[status] || '#888';
+  }
+
+  function payoutStatusLabel(status){
+    return { NOT_APPLICABLE: '', PENDING: 'Payout pending', PAID: 'Payout sent ✓' }[status] || '';
   }
 
   function fmtMoney(amount, currency){
@@ -125,10 +127,11 @@
     const desktopUrl = DESKTOP_URLS[m.method] || '';
     return `
       <div class="pm-row">
-        ${opts.selectable ? `<input type="radio" name="tutorMethodRadio" value="${escapeHtml(m.method)}" ${opts.checked ? 'checked' : ''}>` : ''}
+        ${opts.selectable ? `<input type="radio" name="platformMethodRadio" value="${escapeHtml(m.method)}" ${opts.checked ? 'checked' : ''}>` : ''}
         <div class="pm-body">
           <div class="pm-badge" style="background:${color};">${escapeHtml(m.method)}</div>
           <div class="pm-details">${escapeHtml(m.details)}</div>
+          ${m.label ? `<div class="pm-label">${escapeHtml(m.label)}</div>` : ''}
         </div>
         <div class="pm-actions">
           <button type="button" class="btn ghost small pm-copy-btn" data-copy-text="${escapeHtml(m.details)}">📋 Copy</button>
@@ -147,19 +150,13 @@
     ).join('');
 
     const myName = user.firstName + ' ' + user.lastName;
-    const myMethods = (myProfile && Array.isArray(myProfile.paymentMethods)) ? myProfile.paymentMethods : [];
 
     return `
       <form id="payForm" class="pay-form">
         <div class="field">
-          <label>Already sent the payment? Upload your proof here</label>
-          <p class="pay-instruction">Please upload a screenshot of the payment you sent via Easypaisa, JazzCash, NayaPay, Payoneer, or PayPal.</p>
-          <input type="file" name="proof" accept="image/*" required>
-        </div>
-
-        <div class="field">
-          <label>Tutor</label>
+          <label>Which tutor / class is this payment for?</label>
           <select name="tutorSelect" id="tutorSelect" required>${tutorOptions}</select>
+          <p class="pay-instruction">This is just so we know which class to credit — your payment always goes to the platform's own accounts below, never directly to the tutor.</p>
         </div>
 
         <div class="pay-two-col">
@@ -172,17 +169,21 @@
                 <div class="pay-email">${escapeHtml(user.email)}</div>
               </div>
             </div>
-            ${myMethods.length
-              ? `<div class="pm-list">${myMethods.map(m => methodRowHtml(m)).join('')}</div>`
-              : `<p class="pay-hint warn">You haven't added your own payment accounts yet — go to Profile → Edit profile to add them.</p>`}
           </div>
 
           <div class="pay-arrow">→</div>
 
-          <div class="pay-side" id="tutorSidePane">
-            <div class="pay-side-title">Sending to</div>
-            <p class="pay-hint">Loading...</p>
+          <div class="pay-side" id="platformSidePane">
+            <div class="pay-side-title">Sending to (International Learning Platform)</div>
+            ${platformMethods.length
+              ? `<div class="pm-list">${platformMethods.map((m,i) => methodRowHtml(m, { selectable:true, checked:i===0 })).join('')}</div>`
+              : `<p class="pay-hint warn">No payment accounts have been set up yet. Please contact support before sending any payment.</p>`}
           </div>
+        </div>
+
+        <p class="pay-instruction" style="margin-top:4px;">Once you've sent the payment above, upload your screenshot as proof:</p>
+        <div class="field">
+          <input type="file" name="proof" accept="image/*" required>
         </div>
 
         <div class="field-row" style="margin-top:16px;">
@@ -205,43 +206,6 @@
         <div id="payMsg" class="msg"></div>
         <button type="submit" class="btn primary block">I've sent this payment</button>
       </form>`;
-  }
-
-  function renderTutorSide(tutorId){
-    const pane = document.getElementById('tutorSidePane');
-    if (!pane) return;
-    const profile = tutorProfiles[tutorId];
-
-    if (!profile){
-      pane.innerHTML = `<div class="pay-side-title">Sending to</div><p class="pay-hint">Loading...</p>`;
-      return;
-    }
-
-    const name = profile.user ? `${profile.user.firstName} ${profile.user.lastName}` : 'Tutor';
-    const methods = Array.isArray(profile.paymentMethods) ? profile.paymentMethods : [];
-
-    pane.innerHTML = `
-      <div class="pay-side-title">Sending to</div>
-      <div class="pay-person">
-        ${avatarHtml(name, profile.pictureUrl)}
-        <div><strong>${escapeHtml(name)}</strong></div>
-      </div>
-      ${methods.length
-        ? `<div class="pm-list">${methods.map((m,i) => methodRowHtml(m, { selectable:true, checked:i===0 })).join('')}</div>`
-        : `<p class="pay-hint warn">This tutor hasn't added their payment details yet. Please message them before sending any payment.</p>`}
-    `;
-    wirePmButtons(pane);
-  }
-
-  async function loadTutorProfileIfNeeded(tutorId){
-    if (!tutorProfiles[tutorId]){
-      try{
-        tutorProfiles[tutorId] = await getPublicTutorProfile(tutorId);
-      }catch(err){
-        tutorProfiles[tutorId] = { paymentMethods: [] };
-      }
-    }
-    renderTutorSide(tutorId);
   }
 
   /* ---------- Copy + smart Open button wiring ---------- */
@@ -289,7 +253,7 @@
         </div>
         <div class="req-detail">Method: ${escapeHtml((p.method || '').replace('_',' '))}</div>
         <div class="req-detail">Submitted: ${fmtDate(p.createdAt)}</div>
-        ${p.status === 'CONFIRMED' && isTutor ? `<div class="req-detail">Your payout: ${fmtMoney(p.tutorPayout, p.currency)} (after 10% platform fee)</div>` : ''}
+        ${p.status === 'CONFIRMED' && isTutor ? `<div class="req-detail">Your payout: ${fmtMoney(p.tutorPayout, p.currency)} (after 10% platform fee) — ${payoutStatusLabel(p.payoutStatus)}</div>` : ''}
         ${p.status === 'REJECTED' && p.adminNote ? `<div class="req-detail" style="color:var(--rose);">Reason: ${escapeHtml(p.adminNote)}</div>` : ''}
         <div class="req-detail"><a href="${p.proofUrl}" target="_blank" rel="noopener">View proof</a></div>
       </div>`).join('');
@@ -315,9 +279,6 @@
       if (form){
         wirePmButtons(form);
         form.addEventListener('submit', onSubmitPayment);
-        const select = document.getElementById('tutorSelect');
-        select.addEventListener('change', () => loadTutorProfileIfNeeded(select.value));
-        loadTutorProfileIfNeeded(select.value);
       }
     }
   }
@@ -333,11 +294,11 @@
     const requestId = selectedOption.dataset.request;
     const amount = form.amount.value;
     const currency = form.currency.value;
-    const methodRadio = form.querySelector('input[name="tutorMethodRadio"]:checked');
+    const methodRadio = form.querySelector('input[name="platformMethodRadio"]:checked');
 
     if (!methodRadio){
       msg.className = 'msg error';
-      msg.textContent = 'Please select which of the tutor\'s payment methods you sent to.';
+      msg.textContent = 'Please select which account you sent the payment to.';
       return;
     }
     const method = methodRadio.value;
@@ -375,6 +336,7 @@
         try{ myProfile = await getMyProfile(); }catch(e){ myProfile = null; }
         const { requests } = await fetchMyTrialRequests();
         acceptedRequests = (requests || []).filter(r => r.status === 'ACCEPTED');
+        try{ platformMethods = (await fetchPlatformPaymentMethods()) || []; }catch(e){ platformMethods = []; }
       }
       myPayments = (await fetchMyPayments()) || [];
       renderAll();
@@ -417,6 +379,7 @@
   .pm-body{ flex:1; min-width:0; }
   .pm-badge{ display:inline-block; color:#fff; font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:999px; margin-bottom:4px; }
   .pm-details{ font-size:.85rem; color:var(--ink,#222); word-break:break-word; }
+  .pm-label{ font-size:.75rem; color:var(--ink-2,#888); margin-top:2px; }
   .pm-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
 
   .pay-hint{ background:#f6f8f6; border:1px solid var(--line,#eee); border-radius:10px; padding:12px 14px; font-size:.85rem; color:var(--ink-2); }
