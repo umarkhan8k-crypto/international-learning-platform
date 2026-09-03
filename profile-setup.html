@@ -176,6 +176,15 @@
 </div>
 <div class="field" id="f_s_availability"><label>Preferred days &amp; time to study</label><input type="text" id="s_availability" placeholder="e.g. Weekday evenings (GMT+5)"><div class="field-error"></div></div>
 <div class="field" id="f_s_bio"><label>A little about you / your goals</label><textarea id="s_bio" placeholder="e.g. Learning Hifz, prefer evening classes"></textarea><div class="field-error"></div></div>
+
+<div class="section-label">Payment details</div>
+<div class="field" id="f_s_payment">
+<label>Which accounts will you pay from?</label>
+<div class="hint" style="margin:-2px 0 8px;">Add the accounts you'll use to pay tutors (Bank, JazzCash, Easypaisa, PayPal, Payoneer, etc). This is just a record for you — it will be shown to you when making a payment as a reminder of your own account details.</div>
+<div id="s_paymentMount"></div>
+<div class="field-error"></div>
+</div>
+
 <button type="submit" class="btn primary block">Create profile</button>
 </form>
 
@@ -241,8 +250,8 @@ function requireChips(picker, fieldId, label){
 if (!picker.getValues().length){ setError(fieldId, `Please add at least one ${label}.`); return false; }
 clearError(fieldId); return true;
 }
-function requirePaymentMethods(picker, fieldId){
-if (!picker.getValues().length){ setError(fieldId, 'Please add at least one way for students to pay you.'); return false; }
+function requirePaymentMethods(picker, fieldId, message){
+if (!picker.getValues().length){ setError(fieldId, message || 'Please add at least one payment method.'); return false; }
 clearError(fieldId); return true;
 }
 function scrollToFirstError(){
@@ -250,7 +259,7 @@ const first = document.querySelector('.field.invalid');
 if (first) first.scrollIntoView({behavior:'smooth', block:'center'});
 }
 
-/* ---------- payment methods picker ---------- */
+/* ---------- payment methods picker (shared by tutor + student forms) ---------- */
 const PAYMENT_METHOD_TYPES = ['Bank Transfer','JazzCash','Easypaisa','Payoneer','Wise','PayPal','Other'];
 
 function initPaymentMethodsPicker(mount){
@@ -413,7 +422,7 @@ ok = requireText('t_bio','f_t_bio','Bio') && ok;
 const priceVal = document.getElementById('t_price').value;
 if (!priceVal || Number(priceVal) <= 0){ setError('f_t_price','Please enter a valid price.'); ok = false; } else { clearError('f_t_price'); }
 ok = requireChips(tLang,'f_t_lang','language') && ok;
-ok = requirePaymentMethods(tPayment,'f_t_payment') && ok;
+ok = requirePaymentMethods(tPayment,'f_t_payment','Please add at least one way for students to pay you.') && ok;
 
 if (!ok){ scrollToFirstError(); return; }
 
@@ -459,6 +468,7 @@ const sPhone = initPhonePicker(document.getElementById('s_phoneMount'));
 const sWa = initPhonePicker(document.getElementById('s_waMount'));
 const sLang = initChipPicker(document.getElementById('s_langMount'), {options: LANGUAGES, placeholder:'Tap to select the languages you speak'});
 const sInterests = initSubjectPicker(document.getElementById('s_interestsMount'), {options:['Qaida','Recitation','Hifz','Tajweed','Arabic'], placeholder:'Tap to choose subjects'});
+const sPayment = initPaymentMethodsPicker(document.getElementById('s_paymentMount'));
 
 const sPicBox = initUploadBox(document.getElementById('s_picMount'), {
   accept:'image/*', kind:'image', label:'Tap to upload a photo', previewShape:'circle',
@@ -493,6 +503,7 @@ getMyProfile().then(profile => {
   if (profile.languages) sLang.setValues(profile.languages);
   if (profile.availability) document.getElementById('s_availability').value = profile.availability;
   if (profile.bio) document.getElementById('s_bio').value = profile.bio;
+  if (profile.paymentMethods && profile.paymentMethods.length) sPayment.setValues(profile.paymentMethods);
 }).catch(()=>{ /* no existing profile yet — fine for first-time setup */ });
 
 document.getElementById('studentForm').addEventListener('submit', (e)=>{
@@ -511,6 +522,7 @@ ok = requirePickerValues(sInterests,'f_s_interests','subject') && ok;
 ok = requireChips(sLang,'f_s_lang','language') && ok;
 ok = requireText('s_availability','f_s_availability','Preferred days & time') && ok;
 ok = requireText('s_bio','f_s_bio','This field') && ok;
+ok = requirePaymentMethods(sPayment,'f_s_payment','Please add at least one account you\'ll pay from.') && ok;
 
 if (!ok){ scrollToFirstError(); return; }
 
@@ -530,6 +542,7 @@ interests,
 languages: sLang.getValues(),
 availability: document.getElementById('s_availability').value.trim(),
 bio: document.getElementById('s_bio').value.trim(),
+paymentMethods: sPayment.getValues(),
 }).then(()=>{ location.href = nextAfterSave; }).catch(err=>{
   const msg = document.getElementById('setupMsg');
   msg.className='msg error'; msg.textContent = err.message; msg.style.display='block';
