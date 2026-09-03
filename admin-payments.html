@@ -11,8 +11,21 @@
 
 <section style="padding:40px 0;">
   <div class="container">
-    <h1 style="font-size:1.6rem;margin-bottom:20px;">Pending Payments</h1>
-    <div id="adminPayWrap"><p style="color:var(--ink-2);">Loading...</p></div>
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="pending">Pending Review</button>
+      <button class="admin-tab" data-tab="payouts">Payouts Due to Tutors</button>
+    </div>
+
+    <div id="pendingPanel">
+      <h1 style="font-size:1.4rem;margin:20px 0;">Pending Payments</h1>
+      <div id="adminPayWrap"><p style="color:var(--ink-2);">Loading...</p></div>
+    </div>
+
+    <div id="payoutsPanel" style="display:none;">
+      <h1 style="font-size:1.4rem;margin:20px 0;">Payouts Due to Tutors</h1>
+      <p style="color:var(--ink-2);font-size:.9rem;margin-bottom:16px;">These payments have been confirmed (money received by the platform). Send each tutor their share yourself via JazzCash/bank transfer, then mark it as paid here.</p>
+      <div id="payoutsWrap"><p style="color:var(--ink-2);">Loading...</p></div>
+    </div>
   </div>
 </section>
 
@@ -24,6 +37,7 @@
   if (user.role !== 'ADMIN'){ location.href = 'dashboard.html'; }
 
   let pending = [];
+  let payoutsDue = [];
 
   function fmtMoney(amount, currency){
     return `${currency || 'USD'} ${Number(amount).toFixed(2)}`;
@@ -34,7 +48,23 @@
     catch(e){ return iso; }
   }
 
+  /* ---------- tabs ---------- */
+  document.querySelectorAll('.admin-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const isPending = tab.dataset.tab === 'pending';
+      document.getElementById('pendingPanel').style.display = isPending ? 'block' : 'none';
+      document.getElementById('payoutsPanel').style.display = isPending ? 'none' : 'block';
+      if (!isPending) loadPayouts();
+    });
+  });
+
+  /* ---------- pending review cards ---------- */
   function cardHtml(p){
+    const amount = Number(p.amount);
+    const commission = +(amount * 0.10).toFixed(2);
+    const tutorShare = +(amount - commission).toFixed(2);
     return `
       <div class="pay-card" data-id="${p.id}">
         <div class="pay-card-top">
@@ -45,14 +75,18 @@
           </div>
           <div class="pay-amount">${fmtMoney(p.amount, p.currency)}</div>
         </div>
-        <div class="req-detail">Method: ${p.method.replace('_',' ')} · Submitted: ${fmtDate(p.createdAt)}</div>
+        <div class="req-detail">Sent via: ${p.method.replace('_',' ')} (platform account) · Submitted: ${fmtDate(p.createdAt)}</div>
+        <div class="commission-breakdown">
+          <span>Platform fee (10%): <strong>${fmtMoney(commission, p.currency)}</strong></span>
+          <span>Tutor gets (90%): <strong>${fmtMoney(tutorShare, p.currency)}</strong></span>
+        </div>
         <div style="margin:12px 0;">
           <a href="${p.proofUrl}" target="_blank" rel="noopener">
             <img src="${p.proofUrl}" alt="Payment proof" class="proof-thumb">
           </a>
         </div>
         <div class="pay-actions">
-          <button class="btn primary small" data-confirm="${p.id}">Confirm</button>
+          <button class="btn primary small" data-confirm="${p.id}">Confirm — money received</button>
           <button class="btn ghost small" data-reject="${p.id}">Reject</button>
         </div>
       </div>`;
@@ -68,6 +102,7 @@
 
     wrap.querySelectorAll('[data-confirm]').forEach(btn => {
       btn.addEventListener('click', async () => {
+        if (!confirm('Confirm that you have actually received this payment in your account?')) return;
         btn.disabled = true;
         try{ await confirmPayment(btn.dataset.confirm); await load(); }
         catch(err){ alert(err.message); btn.disabled = false; }
@@ -94,16 +129,76 @@
     }
   }
 
+  /* ---------- payouts-due cards ---------- */
+  function payoutCardHtml(p){
+    return `
+      <div class="pay-card" data-id="${p.id}">
+        <div class="pay-card-top">
+          <div>Pay tutor: <strong>${p.tutor.firstName} ${p.tutor.lastName}</strong></div>
+          <div class="pay-amount">${fmtMoney(p.tutorPayout, p.currency)}</div>
+        </div>
+        <div class="req-detail">From ${p.student.firstName} ${p.student.lastName}'s payment of ${fmtMoney(p.amount, p.currency)} · Confirmed: ${fmtDate(p.confirmedAt)}</div>
+        <div class="payout-form">
+          <select class="payout-method-select">
+            <option value="JazzCash">JazzCash</option>
+            <option value="Easypaisa">Easypaisa</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Other">Other</option>
+          </select>
+          <input type="text" class="payout-note-input" placeholder="Reference / transaction ID (optional)">
+          <button class="btn primary small" data-mark-paid="${p.id}">Mark as sent</button>
+        </div>
+      </div>`;
+  }
+
+  function renderPayouts(){
+    const wrap = document.getElementById('payoutsWrap');
+    if (!payoutsDue.length){
+      wrap.innerHTML = `<p style="color:var(--ink-2);">No payouts pending — you're all caught up.</p>`;
+      return;
+    }
+    wrap.innerHTML = `<div class="pay-list">${payoutsDue.map(payoutCardHtml).join('')}</div>`;
+
+    wrap.querySelectorAll('[data-mark-paid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const card = btn.closest('.pay-card');
+        const payoutMethod = card.querySelector('.payout-method-select').value;
+        const payoutNote = card.querySelector('.payout-note-input').value;
+        if (!confirm('Confirm you have already sent this money to the tutor yourself?')) return;
+        btn.disabled = true;
+        try{ await markPaymentPaidOut(btn.dataset.markPaid, payoutMethod, payoutNote); await loadPayouts(); }
+        catch(err){ alert(err.message); btn.disabled = false; }
+      });
+    });
+  }
+
+  async function loadPayouts(){
+    const wrap = document.getElementById('payoutsWrap');
+    try{
+      payoutsDue = (await fetchPayoutsDue()) || [];
+      renderPayouts();
+    }catch(err){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load payouts: ${err.message}</p>`;
+    }
+  }
+
   load();
 </script>
 <style>
+  .admin-tabs{ display:flex; gap:8px; margin-top:24px; border-bottom:1px solid var(--line,#eee); }
+  .admin-tab{ border:none; background:none; padding:10px 16px; font-weight:700; color:var(--ink-2,#888); cursor:pointer; border-bottom:2px solid transparent; font:inherit; }
+  .admin-tab.active{ color:var(--green,#1e7d43); border-bottom-color:var(--green,#1e7d43); }
   .pay-list{ display:flex; flex-direction:column; gap:16px; }
   .pay-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:18px; background:#fff; }
   .pay-card-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
   .pay-amount{ font-weight:800; font-size:1.05rem; color:var(--brand-dark); }
   .req-detail{ color:var(--ink-2); font-size:.85rem; margin-top:4px; }
+  .commission-breakdown{ display:flex; gap:20px; flex-wrap:wrap; background:#f6f8f6; border:1px solid var(--line,#eee); border-radius:8px; padding:10px 12px; margin-top:10px; font-size:.85rem; }
   .proof-thumb{ max-width:260px; max-height:260px; border-radius:8px; border:1px solid var(--line,#eee); }
   .pay-actions{ display:flex; gap:10px; }
+  .payout-form{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px; }
+  .payout-form select, .payout-form input{ padding:8px 10px; border:1px solid var(--line,#ccc); border-radius:6px; font-size:.85rem; }
+  .payout-note-input{ flex:1; min-width:160px; }
 </style>
 </body>
 </html>
