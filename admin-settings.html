@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Payment Settings — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="">
+<div id="nav"></div>
+
+<section style="padding:40px 0;">
+  <div class="container">
+    <h1 style="font-size:1.4rem;margin-bottom:8px;">Platform Payment Accounts</h1>
+    <p style="color:var(--ink-2);font-size:.9rem;margin-bottom:24px;max-width:60ch;">
+      These are YOUR accounts — the ones students will see and send money to on the Payments page.
+      Never put a tutor's personal account here.
+    </p>
+
+    <div id="methodsWrap"><p style="color:var(--ink-2);">Loading...</p></div>
+
+    <h2 style="font-size:1.1rem;margin:32px 0 12px;">Add a new account</h2>
+    <form id="addMethodForm" class="settings-form">
+      <div class="field-row">
+        <div class="field">
+          <label>Method</label>
+          <select name="method" required>
+            <option value="JazzCash">JazzCash</option>
+            <option value="Easypaisa">Easypaisa</option>
+            <option value="PayPal">PayPal</option>
+            <option value="Payoneer">Payoneer</option>
+            <option value="NayaPay">NayaPay</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Wise">Wise</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Account details (shown to students)</label>
+          <input type="text" name="details" placeholder="e.g. 0343-9225779 (Mustafa Khan)" required>
+        </div>
+      </div>
+      <div class="field">
+        <label>Optional note</label>
+        <input type="text" name="label" placeholder="e.g. Preferred for Pakistani students">
+      </div>
+      <div id="addMsg" class="msg"></div>
+      <button type="submit" class="btn primary small">Add account</button>
+    </form>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=admin-settings.html'; }
+  if (user.role !== 'ADMIN'){ location.href = 'dashboard.html'; }
+
+  let methods = [];
+
+  function escapeHtml(str){
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function rowHtml(m){
+    return `
+      <div class="method-row" data-id="${m.id}">
+        <div class="method-info">
+          <span class="pm-badge">${escapeHtml(m.method)}</span>
+          <span class="method-details">${escapeHtml(m.details)}</span>
+          ${m.label ? `<span class="method-label">${escapeHtml(m.label)}</span>` : ''}
+        </div>
+        <div class="method-actions">
+          <label class="toggle-label">
+            <input type="checkbox" class="active-toggle" ${m.isActive ? 'checked' : ''}>
+            Active
+          </label>
+          <button class="btn ghost small" data-delete="${m.id}">Delete</button>
+        </div>
+      </div>`;
+  }
+
+  function render(){
+    const wrap = document.getElementById('methodsWrap');
+    if (!methods.length){
+      wrap.innerHTML = `<p style="color:var(--ink-2);">No payment accounts added yet — add one below.</p>`;
+      return;
+    }
+    wrap.innerHTML = `<div class="method-list">${methods.map(rowHtml).join('')}</div>`;
+
+    wrap.querySelectorAll('.active-toggle').forEach(cb => {
+      cb.addEventListener('change', async () => {
+        const id = cb.closest('.method-row').dataset.id;
+        cb.disabled = true;
+        try{ await updatePlatformMethod(id, { isActive: cb.checked }); await load(); }
+        catch(err){ alert(err.message); cb.disabled = false; }
+      });
+    });
+
+    wrap.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Delete this payment account? Students will no longer see it.')) return;
+        btn.disabled = true;
+        try{ await deletePlatformMethod(btn.dataset.delete); await load(); }
+        catch(err){ alert(err.message); btn.disabled = false; }
+      });
+    });
+  }
+
+  async function load(){
+    const wrap = document.getElementById('methodsWrap');
+    try{
+      methods = (await fetchAdminPlatformMethods()) || [];
+      render();
+    }catch(err){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load: ${err.message}</p>`;
+    }
+  }
+
+  document.getElementById('addMethodForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const msg = document.getElementById('addMsg');
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    msg.className = 'msg'; msg.textContent = '';
+    try{
+      await createPlatformMethod({
+        method: form.method.value,
+        details: form.details.value,
+        label: form.label.value,
+        sortOrder: methods.length,
+      });
+      form.reset();
+      msg.className = 'msg success';
+      msg.textContent = 'Account added.';
+      await load();
+    }catch(err){
+      msg.className = 'msg error';
+      msg.textContent = err.message;
+    }finally{
+      btn.disabled = false;
+    }
+  });
+
+  load();
+</script>
+<style>
+  .method-list{ display:flex; flex-direction:column; gap:10px; }
+  .method-row{ display:flex; justify-content:space-between; align-items:center; gap:12px; border:1px solid var(--line,#eee); border-radius:10px; padding:12px 14px; background:#fff; flex-wrap:wrap; }
+  .method-info{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .pm-badge{ background:#1e7d43; color:#fff; font-size:.7rem; font-weight:700; padding:2px 10px; border-radius:999px; }
+  .method-details{ font-size:.9rem; }
+  .method-label{ font-size:.78rem; color:var(--ink-2,#888); }
+  .method-actions{ display:flex; align-items:center; gap:12px; }
+  .toggle-label{ font-size:.82rem; color:var(--ink-2,#888); display:flex; align-items:center; gap:6px; }
+  .settings-form{ max-width:520px; display:flex; flex-direction:column; gap:14px; }
+  .settings-form .field-row{ display:grid; grid-template-columns:1fr 1.5fr; gap:12px; }
+  @media (max-width:560px){ .settings-form .field-row{ grid-template-columns:1fr; } }
+</style>
+</body>
+</html>
