@@ -399,6 +399,53 @@ async function rejectPayment(id, reason){
   return apiRequest('/payments/' + id + '/reject', { method: 'PATCH', body: JSON.stringify({ reason }) });
 }
 
+/* ---------- NEW: platform payment accounts + tutor payout tracking ---------- */
+
+// STUDENT/anyone logged in: get the platform's own payment accounts
+// (this is what the "Sending to" panel on payments.html shows)
+async function fetchPlatformPaymentMethods(){
+  return apiRequest('/payments/platform-methods');
+}
+
+// ADMIN: list ALL platform payment methods (including inactive ones)
+async function fetchAdminPlatformMethods(){
+  return apiRequest('/payments/admin/platform-methods');
+}
+
+// ADMIN: add a new platform payment method
+async function createPlatformMethod({ method, details, label, sortOrder }){
+  return apiRequest('/payments/admin/platform-methods', {
+    method: 'POST',
+    body: JSON.stringify({ method, details, label, sortOrder }),
+  });
+}
+
+// ADMIN: update an existing platform payment method
+async function updatePlatformMethod(id, data){
+  return apiRequest('/payments/admin/platform-methods/' + id, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+// ADMIN: delete a platform payment method
+async function deletePlatformMethod(id){
+  return apiRequest('/payments/admin/platform-methods/' + id, { method: 'DELETE' });
+}
+
+// ADMIN: confirmed payments whose tutor payout hasn't been sent yet
+async function fetchPayoutsDue(){
+  return apiRequest('/payments/payouts-due');
+}
+
+// ADMIN: mark a confirmed payment's tutor payout as sent
+async function markPaymentPaidOut(id, payoutMethod, payoutNote){
+  return apiRequest('/payments/' + id + '/mark-paid-out', {
+    method: 'PATCH',
+    body: JSON.stringify({ payoutMethod, payoutNote }),
+  });
+}
+
 /* ---------- push notifications ---------- */
 function urlBase64ToUint8Array(base64String){
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
