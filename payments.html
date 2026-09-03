@@ -24,7 +24,14 @@
 
   let acceptedRequests = [];
   let myPayments = [];
+  let myProfile = null;
   let tutorProfiles = {}; // tutorId -> full profile (with paymentMethods)
+
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
 
   function statusColor(status){
     return { PENDING:'#b8860b', CONFIRMED:'#1e7d43', REJECTED:'#c0392b' }[status] || '#888';
@@ -37,6 +44,12 @@
   function fmtDate(iso){
     try{ return new Date(iso).toLocaleString(undefined, { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' }); }
     catch(e){ return iso; }
+  }
+
+  function avatarHtml(name, pictureUrl){
+    return pictureUrl
+      ? `<img src="${pictureUrl}" class="pay-avatar-img">`
+      : `<div class="avatar">${initials(name || '?')}</div>`;
   }
 
   function sidebar(active){
@@ -53,7 +66,24 @@
       <a href="#" class="side-link" onclick="logout();return false;">Log out</a>`;
   }
 
-  // ---------------- STUDENT: payment form ----------------
+  /* ---------- one payment-method row: badge + details + copy (+ PayPal open) ---------- */
+  function methodRowHtml(m, opts={}){
+    const isPaypal = (m.method || '').toLowerCase() === 'paypal';
+    return `
+      <div class="pm-row">
+        ${opts.selectable ? `<input type="radio" name="tutorMethodRadio" value="${escapeHtml(m.method)}" ${opts.checked ? 'checked' : ''}>` : ''}
+        <div class="pm-body">
+          <div class="pm-badge">${escapeHtml(m.method)}</div>
+          <div class="pm-details">${escapeHtml(m.details)}</div>
+        </div>
+        <div class="pm-actions">
+          <button type="button" class="btn ghost small pm-copy-btn" data-copy-text="${escapeHtml(m.details)}">📋 Copy</button>
+          ${isPaypal ? `<button type="button" class="btn ghost small pm-paypal-btn" data-paypal-details="${escapeHtml(m.details)}">Open PayPal ↗</button>` : ''}
+        </div>
+      </div>`;
+  }
+
+  /* ---------- STUDENT: two-sided payment form ---------- */
   function paymentFormHtml(){
     if (!acceptedRequests.length){
       return `<p style="color:var(--ink-2);">You don't have any accepted classes yet. Once a tutor accepts your trial request, you'll be able to send a payment here.</p>`;
@@ -62,6 +92,9 @@
       `<option value="${r.tutor.id}" data-request="${r.id}">${r.tutor.firstName} ${r.tutor.lastName}</option>`
     ).join('');
 
+    const myName = user.firstName + ' ' + user.lastName;
+    const myMethods = (myProfile && Array.isArray(myProfile.paymentMethods)) ? myProfile.paymentMethods : [];
+
     return `
       <form id="payForm" class="pay-form">
         <div class="field">
@@ -69,9 +102,30 @@
           <select name="tutorSelect" id="tutorSelect" required>${tutorOptions}</select>
         </div>
 
-        <div id="tutorPayBox" class="tutor-pay-box"></div>
+        <div class="pay-two-col">
+          <div class="pay-side">
+            <div class="pay-side-title">You're paying</div>
+            <div class="pay-person">
+              ${avatarHtml(myName, myProfile ? myProfile.pictureUrl : null)}
+              <div>
+                <strong>${escapeHtml(myName)}</strong>
+                <div class="pay-email">${escapeHtml(user.email)}</div>
+              </div>
+            </div>
+            ${myMethods.length
+              ? `<div class="pm-list">${myMethods.map(m => methodRowHtml(m)).join('')}</div>`
+              : `<p class="pay-hint warn">You haven't added your own payment accounts yet — go to Profile → Edit profile to add them.</p>`}
+          </div>
 
-        <div class="field-row">
+          <div class="pay-arrow">→</div>
+
+          <div class="pay-side" id="tutorSidePane">
+            <div class="pay-side-title">Sending to</div>
+            <p class="pay-hint">Loading...</p>
+          </div>
+        </div>
+
+        <div class="field-row" style="margin-top:16px;">
           <div class="field">
             <label>Amount</label>
             <input type="number" name="amount" step="0.01" min="1" placeholder="e.g. 20.00" required>
@@ -84,66 +138,82 @@
               <option value="GBP">GBP</option>
               <option value="EUR">EUR</option>
               <option value="AED">AED</option>
+              <option value="CAD">CAD</option>
             </select>
           </div>
         </div>
         <div class="field">
-          <label>Which method did you send payment with?</label>
-          <select name="method" id="methodSelect" required></select>
-        </div>
-        <div class="field">
-          <label>Payment proof (screenshot)</label>
+          <label>Payment proof (screenshot from your banking/wallet app)</label>
           <input type="file" name="proof" accept="image/*" required>
         </div>
         <div id="payMsg" class="msg"></div>
-        <button type="submit" class="btn primary block">Submit Payment</button>
+        <button type="submit" class="btn primary block">I've sent this payment</button>
       </form>`;
   }
 
-  function renderTutorPayInfo(tutorId){
-    const box = document.getElementById('tutorPayBox');
-    if (!box) return;
+  function renderTutorSide(tutorId){
+    const pane = document.getElementById('tutorSidePane');
+    if (!pane) return;
     const profile = tutorProfiles[tutorId];
-    const methodSelect = document.getElementById('methodSelect');
 
     if (!profile){
-      box.innerHTML = `<p class="pay-hint">Loading payment details...</p>`;
-      if (methodSelect) methodSelect.innerHTML = '';
+      pane.innerHTML = `<div class="pay-side-title">Sending to</div><p class="pay-hint">Loading...</p>`;
       return;
     }
 
+    const name = profile.user ? `${profile.user.firstName} ${profile.user.lastName}` : 'Tutor';
     const methods = Array.isArray(profile.paymentMethods) ? profile.paymentMethods : [];
 
-    if (!methods.length){
-      box.innerHTML = `<p class="pay-hint warn">This tutor hasn't added their payment details yet. Please message them before sending any payment.</p>`;
-      if (methodSelect) methodSelect.innerHTML = '';
-      return;
-    }
-
-    const tutorName = profile.user ? `${profile.user.firstName} ${profile.user.lastName}` : 'this tutor';
-    box.innerHTML = `
-      <div class="pay-hint">
-        <strong>Send payment to ${tutorName} using one of these:</strong>
-        <ul class="pay-method-list">
-          ${methods.map(m => `<li><strong>${m.method}:</strong> ${m.details}</li>`).join('')}
-        </ul>
-      </div>`;
-
-    if (methodSelect){
-      methodSelect.innerHTML = methods.map(m => `<option value="${m.method}">${m.method}</option>`).join('');
-    }
+    pane.innerHTML = `
+      <div class="pay-side-title">Sending to</div>
+      <div class="pay-person">
+        ${avatarHtml(name, profile.pictureUrl)}
+        <div><strong>${escapeHtml(name)}</strong></div>
+      </div>
+      ${methods.length
+        ? `<div class="pm-list">${methods.map((m,i) => methodRowHtml(m, { selectable:true, checked:i===0 })).join('')}</div>`
+        : `<p class="pay-hint warn">This tutor hasn't added their payment details yet. Please message them before sending any payment.</p>`}
+    `;
+    wirePmButtons(pane);
   }
 
   async function loadTutorProfileIfNeeded(tutorId){
-    if (tutorProfiles[tutorId]) { renderTutorPayInfo(tutorId); return; }
-    renderTutorPayInfo(tutorId);
-    try{
-      const profile = await getPublicTutorProfile(tutorId);
-      tutorProfiles[tutorId] = profile;
-    }catch(err){
-      tutorProfiles[tutorId] = { paymentMethods: [] };
+    if (!tutorProfiles[tutorId]){
+      try{
+        tutorProfiles[tutorId] = await getPublicTutorProfile(tutorId);
+      }catch(err){
+        tutorProfiles[tutorId] = { paymentMethods: [] };
+      }
     }
-    renderTutorPayInfo(tutorId);
+    renderTutorSide(tutorId);
+  }
+
+  /* ---------- copy + PayPal button wiring ---------- */
+  function wirePmButtons(scope){
+    scope.querySelectorAll('.pm-copy-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const text = btn.dataset.copyText;
+        navigator.clipboard.writeText(text).then(() => {
+          const original = btn.textContent;
+          btn.textContent = '✓ Copied';
+          setTimeout(() => { btn.textContent = original; }, 1500);
+        }).catch(() => {
+          alert('Could not copy automatically — please select and copy the details manually.');
+        });
+      });
+    });
+
+    scope.querySelectorAll('.pm-paypal-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const details = (btn.dataset.paypalDetails || '').trim();
+        const form = document.getElementById('payForm');
+        const amount = form ? (form.querySelector('input[name="amount"]').value || '').trim() : '';
+        let handle = details.replace(/^https?:\/\//i, '').replace(/^(www\.)?paypal\.me\//i, '').split(/[\s,]/)[0];
+        let url = 'https://paypal.me/' + handle;
+        if (amount) url += '/' + amount;
+        window.open(url, '_blank', 'noopener');
+      });
+    });
   }
 
   function historyListHtml(){
@@ -156,10 +226,10 @@
           <strong>${fmtMoney(p.amount, p.currency)}</strong>
           <span style="color:${statusColor(p.status)};font-weight:700;font-size:.75rem;text-transform:uppercase;">${p.status}</span>
         </div>
-        <div class="req-detail">Method: ${p.method.replace('_',' ')}</div>
+        <div class="req-detail">Method: ${escapeHtml((p.method || '').replace('_',' '))}</div>
         <div class="req-detail">Submitted: ${fmtDate(p.createdAt)}</div>
         ${p.status === 'CONFIRMED' && isTutor ? `<div class="req-detail">Your payout: ${fmtMoney(p.tutorPayout, p.currency)} (after 10% platform fee)</div>` : ''}
-        ${p.status === 'REJECTED' && p.adminNote ? `<div class="req-detail" style="color:var(--rose);">Reason: ${p.adminNote}</div>` : ''}
+        ${p.status === 'REJECTED' && p.adminNote ? `<div class="req-detail" style="color:var(--rose);">Reason: ${escapeHtml(p.adminNote)}</div>` : ''}
         <div class="req-detail"><a href="${p.proofUrl}" target="_blank" rel="noopener">View proof</a></div>
       </div>`).join('');
   }
@@ -169,7 +239,7 @@
     wrap.innerHTML = `
       <div class="profile-layout">
         <aside class="profile-sidebar">${sidebar('payments')}</aside>
-        <div class="profile-card" style="flex:1;">
+        <div class="profile-card" style="flex:1;min-width:0;">
           ${!isTutor ? `
             <h2 class="section-heading">Make a Payment</h2>
             <div style="margin-bottom:28px;">${paymentFormHtml()}</div>
@@ -182,6 +252,7 @@
     if (!isTutor){
       const form = document.getElementById('payForm');
       if (form){
+        wirePmButtons(form);
         form.addEventListener('submit', onSubmitPayment);
         const select = document.getElementById('tutorSelect');
         select.addEventListener('change', () => loadTutorProfileIfNeeded(select.value));
@@ -201,14 +272,14 @@
     const requestId = selectedOption.dataset.request;
     const amount = form.amount.value;
     const currency = form.currency.value;
-    const methodSelect = form.querySelector('select[name="method"]');
+    const methodRadio = form.querySelector('input[name="tutorMethodRadio"]:checked');
 
-    if (!methodSelect.value){
+    if (!methodRadio){
       msg.className = 'msg error';
-      msg.textContent = 'This tutor has no payment method set up yet — please message them first.';
+      msg.textContent = 'Please select which of the tutor\'s payment methods you sent to.';
       return;
     }
-    const method = methodSelect.value;
+    const method = methodRadio.value;
     const file = form.proof.files[0];
 
     msg.className = 'msg';
@@ -227,7 +298,7 @@
       msg.textContent = err.message;
     }finally{
       btn.disabled = false;
-      btn.textContent = 'Submit Payment';
+      btn.textContent = "I've sent this payment";
     }
   }
 
@@ -240,6 +311,7 @@
     const wrap = document.getElementById('payWrap');
     try{
       if (!isTutor){
+        try{ myProfile = await getMyProfile(); }catch(e){ myProfile = null; }
         const { requests } = await fetchMyTrialRequests();
         acceptedRequests = (requests || []).filter(r => r.status === 'ACCEPTED');
       }
@@ -267,11 +339,26 @@
   .req-detail{ color:var(--ink-2); font-size:.85rem; margin-top:4px; }
   .pay-form .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   @media (max-width:560px){ .pay-form .field-row{ grid-template-columns:1fr; } }
-  .tutor-pay-box{ margin: -6px 0 16px; }
+
+  .pay-two-col{ display:grid; grid-template-columns:1fr auto 1fr; gap:16px; align-items:start; margin:16px 0; }
+  @media (max-width:720px){ .pay-two-col{ grid-template-columns:1fr; } .pay-arrow{ transform:rotate(90deg); margin:4px auto; } }
+  .pay-arrow{ font-size:1.4rem; color:var(--ink-2,#888); align-self:center; }
+  .pay-side{ border:1px solid var(--line,#eee); border-radius:10px; padding:14px; background:#fafafa; }
+  .pay-side-title{ font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-2,#888); margin-bottom:10px; font-weight:700; }
+  .pay-person{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  .pay-avatar-img{ width:40px; height:40px; border-radius:50%; object-fit:cover; }
+  .pay-email{ font-size:.78rem; color:var(--ink-2,#888); }
+
+  .pm-list{ display:flex; flex-direction:column; gap:10px; }
+  .pm-row{ display:flex; align-items:flex-start; gap:8px; background:#fff; border:1px solid var(--line,#eee); border-radius:8px; padding:10px; }
+  .pm-row input[type="radio"]{ margin-top:4px; flex-shrink:0; }
+  .pm-body{ flex:1; min-width:0; }
+  .pm-badge{ display:inline-block; background:var(--green,#1e7d43); color:#fff; font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:999px; margin-bottom:4px; }
+  .pm-details{ font-size:.85rem; color:var(--ink,#222); word-break:break-word; }
+  .pm-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+
   .pay-hint{ background:#f6f8f6; border:1px solid var(--line,#eee); border-radius:10px; padding:12px 14px; font-size:.85rem; color:var(--ink-2); }
   .pay-hint.warn{ background:#fff6ec; border-color:#f0d9b5; color:#8a5a1f; }
-  .pay-method-list{ margin:8px 0 0; padding-left:18px; }
-  .pay-method-list li{ margin-bottom:4px; color:var(--ink); }
 </style>
 </body>
 </html>
