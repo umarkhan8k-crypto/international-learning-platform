@@ -9,8 +9,12 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'International Learning Platform';
   const options = {
     body: data.body || '',
-    icon: 'favicon.png',
-    badge: 'favicon.png',
+    // Large icon shown inside the notification — our green brand icon.
+    icon: 'icon-192.png',
+    // Small status-bar icon (Android). This MUST be a simple white
+    // silhouette on a transparent background — Android applies its own
+    // tint color to it, so a colored image here would just look wrong.
+    badge: 'badge-96.png',
     data: { url: data.url || '/' },
   };
 
