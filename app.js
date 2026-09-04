@@ -446,6 +446,44 @@ async function markPaymentPaidOut(id, payoutMethod, payoutNote){
   });
 }
 
+/* ---------- NEW: schedule — tutor weekly availability + booked-class calendar ---------- */
+
+const SCHEDULE_DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+// Public: any visitor can see a tutor's weekly availability (e.g. on their
+// public profile, before a student decides when to request a trial).
+async function fetchTutorAvailability(tutorId){
+  const data = await apiRequest('/schedule/availability/' + tutorId);
+  return data.slots;
+}
+
+// TUTOR: my own weekly availability, for editing on the schedule page.
+async function fetchMyAvailability(){
+  const data = await apiRequest('/schedule/availability/me/list');
+  return data.slots;
+}
+
+// TUTOR: replace my entire weekly availability. slots = [{dayOfWeek, startTime, endTime}]
+async function saveMyAvailability(slots){
+  const data = await apiRequest('/schedule/availability', {
+    method: 'PUT',
+    body: JSON.stringify({ slots }),
+  });
+  return data.slots;
+}
+
+// Either side: my booked classes (ACCEPTED trial requests with a class
+// date/time) for the calendar view. start/end are optional ISO date strings
+// used to only fetch the month currently being shown.
+async function fetchMyCalendar(start, end){
+  const params = new URLSearchParams();
+  if (start) params.set('start', start);
+  if (end) params.set('end', end);
+  const qs = params.toString();
+  const data = await apiRequest('/schedule/calendar' + (qs ? '?' + qs : ''));
+  return data.classes;
+}
+
 /* ---------- push notifications ---------- */
 function urlBase64ToUint8Array(base64String){
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
