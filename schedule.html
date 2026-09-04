@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Schedule — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="Profile">
+<div id="nav"></div>
+
+<section style="padding:40px 0;">
+  <div class="container">
+    <div class="profile-layout">
+      <aside class="profile-sidebar" id="scheduleSidebar"></aside>
+
+      <div style="flex:1;min-width:0;">
+        <h2 style="margin:0 0 1rem;">My Schedule</h2>
+
+        <div id="availabilityCard" class="card" style="display:none;margin-bottom:1.5rem;">
+          <h3 style="margin-top:0;">Weekly Availability</h3>
+          <p style="margin:.2em 0 14px;color:var(--ink-2);font-size:.85rem;">Set the times you're generally free each week. Students see this before sending you a trial request.</p>
+          <div id="availabilityDays"></div>
+
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--line,#eee);">
+            <select id="addDay" style="padding:8px 10px;border:1px solid var(--line,#ccc);border-radius:8px;">
+              <option value="0">Sunday</option>
+              <option value="1">Monday</option>
+              <option value="2">Tuesday</option>
+              <option value="3">Wednesday</option>
+              <option value="4">Thursday</option>
+              <option value="5">Friday</option>
+              <option value="6">Saturday</option>
+            </select>
+            <input type="time" id="addStart" style="padding:8px 10px;border:1px solid var(--line,#ccc);border-radius:8px;">
+            <span style="color:var(--ink-2);">to</span>
+            <input type="time" id="addEnd" style="padding:8px 10px;border:1px solid var(--line,#ccc);border-radius:8px;">
+            <button class="btn ghost small" onclick="addSlot()">+ Add slot</button>
+          </div>
+
+          <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
+            <button class="btn primary small" onclick="saveAvailability()">Save availability</button>
+            <span id="availStatus" style="font-size:.85rem;"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <h3 style="margin:0;">Booked Classes</h3>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <button class="btn ghost small" onclick="changeMonth(-1)">‹</button>
+              <span id="monthLabel" style="font-weight:600;min-width:130px;text-align:center;display:inline-block;"></span>
+              <button class="btn ghost small" onclick="changeMonth(1)">›</button>
+            </div>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+          <div id="dayDetail" style="margin-top:16px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=schedule.html'; }
+  const isTutor = user.role === 'TUTOR';
+
+  function sidebar(active){
+    const findLink = isTutor
+      ? `<a href="students.html" class="side-link ${active==='find'?'active':''}">Find Students</a>`
+      : `<a href="tutors.html" class="side-link ${active==='find'?'active':''}">Find a Tutor</a>`;
+    return `
+      <a href="dashboard.html" class="side-link ${active==='dashboard'?'active':''}">Dashboard</a>
+      <a href="profile.html" class="side-link ${active==='profile'?'active':''}">Profile</a>
+      ${findLink}
+      <a href="requests.html" class="side-link ${active==='requests'?'active':''}" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Requests</span>
+        <span id="requestsBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+      </a>
+      <a href="schedule.html" class="side-link ${active==='schedule'?'active':''}">Schedule</a>
+      <a href="messages.html" class="side-link" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Messages</span>
+        <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+      </a>
+      <a href="payments.html" class="side-link">Payments</a>
+      <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
+      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
+      <a href="#" class="side-link" style="color:#c0392b;" onclick="handleDeactivateAccount();return false;">Deactivate account</a>
+    `;
+  }
+  document.getElementById('scheduleSidebar').innerHTML = sidebar('schedule');
+
+  async function handleDeactivateAccount(){
+    if (!confirm('Deactivate your account? Your profile will be hidden from tutors/students, and you will not be able to log in again unless you contact support. This cannot be undone by yourself.')) return;
+    try{ await deactivateAccount(); alert('Your account has been deactivated.'); logout(); }
+    catch(err){ alert(err.message); }
+  }
+  window.handleDeactivateAccount = handleDeactivateAccount;
+
+  async function refreshNotifButtonState(){
+    const bell = document.getElementById('notifBell');
+    const label = document.getElementById('notifLabel');
+    if (!bell || !label) return;
+    try{
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = registration ? await registration.pushManager.getSubscription() : null;
+      if (subscription && Notification.permission === 'granted'){
+        bell.textContent = '🟢'; label.textContent = 'Notifications on'; label.style.color = '#1e7d43';
+      }
+    }catch(err){ /* ignore — button just stays in its default (off) state */ }
+  }
+  async function handleEnableNotifications(btn){
+    btn.disabled = true;
+    const bell = document.getElementById('notifBell');
+    const label = document.getElementById('notifLabel');
+    try{
+      await enablePushNotifications();
+      if (bell) bell.textContent = '🟢';
+      if (label){ label.textContent = 'Notifications on'; label.style.color = '#1e7d43'; }
+    }catch(err){ alert(err.message); btn.disabled = false; }
+  }
+  window.handleEnableNotifications = handleEnableNotifications;
+
+  async function refreshRequestsBadge(){
+    const badge = document.getElementById('requestsBadge');
+    if (!badge) return;
+    try{
+      const { requests } = await fetchMyTrialRequests();
+      const pendingForMe = requests.filter(r => {
+        const iAmReceiver = r.initiatedBy === 'TUTOR' ? !isTutor : isTutor;
+        return r.status === 'PENDING' && iAmReceiver;
+      }).length;
+      if (pendingForMe > 0){ badge.textContent = pendingForMe; badge.style.display = 'inline-block'; }
+    }catch(err){ /* ignore — badge just stays hidden */ }
+  }
+  async function refreshMessagesBadge(){
+    const badge = document.getElementById('messagesBadge');
+    if (!badge) return;
+    try{
+      const count = await getUnreadMessageCount();
+      if (count > 0){ badge.textContent = count; badge.style.display = 'inline-block'; }
+    }catch(err){ /* ignore — badge just stays hidden */ }
+  }
+  refreshNotifButtonState();
+  refreshRequestsBadge();
+  refreshMessagesBadge();
+
+  /* ---------- Weekly availability (tutors only) ---------- */
+  const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  let mySlots = [];
+
+  function renderAvailability(){
+    const el = document.getElementById('availabilityDays');
+    if (!mySlots.length){
+      el.innerHTML = '<p style="color:var(--ink-2);font-size:.9rem;">No availability set yet — add your first slot below.</p>';
+      return;
+    }
+    const byDay = DAY_NAMES.map((_, d) => mySlots.filter(s => s.dayOfWeek === d));
+    el.innerHTML = DAY_NAMES.map((name, d) => {
+      if (!byDay[d].length) return '';
+      const chips = byDay[d].map((s) => {
+        const globalIdx = mySlots.indexOf(s);
+        return `<span class="pill" style="cursor:pointer;margin:3px 6px 3px 0;display:inline-block;" onclick="removeSlot(${globalIdx})">${s.startTime}–${s.endTime} ✕</span>`;
+      }).join('');
+      return `<div style="margin-bottom:10px;"><strong style="font-size:.85rem;">${name}</strong><div>${chips}</div></div>`;
+    }).join('');
+  }
+
+  function addSlot(){
+    const dayOfWeek = Number(document.getElementById('addDay').value);
+    const startTime = document.getElementById('addStart').value;
+    const endTime = document.getElementById('addEnd').value;
+    if (!startTime || !endTime){ alert('Please choose both a start and end time.'); return; }
+    if (startTime >= endTime){ alert('End time must be after start time.'); return; }
+    mySlots.push({ dayOfWeek, startTime, endTime });
+    mySlots.sort((a,b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
+    renderAvailability();
+  }
+  window.addSlot = addSlot;
+
+  function removeSlot(idx){
+    mySlots.splice(idx, 1);
+    renderAvailability();
+  }
+  window.removeSlot = removeSlot;
+
+  async function saveAvailability(){
+    const status = document.getElementById('availStatus');
+    status.textContent = 'Saving...';
+    status.style.color = 'var(--ink-2)';
+    try{
+      mySlots = await saveMyAvailability(mySlots);
+      renderAvailability();
+      status.textContent = 'Saved ✓';
+      status.style.color = '#1e7d43';
+    }catch(err){
+      status.textContent = 'Could not save: ' + err.message;
+      status.style.color = '#c0392b';
+    }
+  }
+  window.saveAvailability = saveAvailability;
+
+  async function loadAvailability(){
+    if (!isTutor) return;
+    document.getElementById('availabilityCard').style.display = 'block';
+    try{
+      mySlots = await fetchMyAvailability();
+      renderAvailability();
+    }catch(err){
+      document.getElementById('availabilityDays').innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load availability: ${err.message}</p>`;
+    }
+  }
+
+  /* ---------- Monthly calendar of booked classes ---------- */
+  let viewYear, viewMonth; // viewMonth: 0-11
+  let monthClasses = [];
+
+  function otherPartyName(c){
+    const person = isTutor ? c.student : c.tutor;
+    return (person.firstName||'') + ' ' + (person.lastName||'');
+  }
+
+  function formatMonthLabel(y, m){
+    return new Date(y, m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  }
+
+  async function loadMonth(){
+    document.getElementById('monthLabel').textContent = formatMonthLabel(viewYear, viewMonth);
+    const start = new Date(viewYear, viewMonth, 1);
+    const end = new Date(viewYear, viewMonth + 1, 0, 23, 59, 59);
+    try{
+      monthClasses = await fetchMyCalendar(start.toISOString(), end.toISOString());
+    }catch(err){
+      monthClasses = [];
+    }
+    renderCalendarGrid();
+    document.getElementById('dayDetail').innerHTML = '';
+  }
+
+  function classesOnDay(y, m, d){
+    return monthClasses.filter(c => {
+      const dt = new Date(c.scheduledAt);
+      return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d;
+    });
+  }
+
+  function renderCalendarGrid(){
+    const grid = document.getElementById('calendarGrid');
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const today = new Date();
+
+    let html = '<div class="cal-weekdays">' + DAY_NAMES.map(d => `<div>${d.slice(0,3)}</div>`).join('') + '</div>';
+    html += '<div class="cal-days">';
+    for (let i = 0; i < firstDay; i++) html += '<div class="cal-cell empty"></div>';
+    for (let d = 1; d <= daysInMonth; d++){
+      const dayClasses = classesOnDay(viewYear, viewMonth, d);
+      const isToday = today.getFullYear()===viewYear && today.getMonth()===viewMonth && today.getDate()===d;
+      html += `<div class="cal-cell ${isToday?'today':''} ${dayClasses.length?'has-class':''}" onclick="showDay(${d})">
+        <span class="cal-daynum">${d}</span>
+        ${dayClasses.length ? `<span class="cal-dot"></span>` : ''}
+      </div>`;
+    }
+    html += '</div>';
+    grid.innerHTML = html;
+  }
+
+  function showDay(d){
+    const dayClasses = classesOnDay(viewYear, viewMonth, d);
+    const el = document.getElementById('dayDetail');
+    if (!dayClasses.length){
+      el.innerHTML = `<p style="color:var(--ink-2);font-size:.9rem;">No classes on ${formatMonthLabel(viewYear, viewMonth).split(' ')[0]} ${d}.</p>`;
+      return;
+    }
+    el.innerHTML = `<h4 style="margin:0 0 8px;font-size:.95rem;">Classes on ${formatMonthLabel(viewYear, viewMonth).split(' ')[0]} ${d}</h4>` +
+      dayClasses.map(c => `
+        <div class="req-item">
+          <div>
+            <strong>${otherPartyName(c)}</strong><br>
+            <span style="font-size:.82rem;color:var(--ink-2);">${new Date(c.scheduledAt).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}${c.meetingLink ? ' · <a href="'+c.meetingLink+'" target="_blank">Join class</a>' : ''}</span>
+          </div>
+        </div>
+      `).join('');
+  }
+  window.showDay = showDay;
+
+  function changeMonth(delta){
+    viewMonth += delta;
+    if (viewMonth < 0){ viewMonth = 11; viewYear--; }
+    if (viewMonth > 11){ viewMonth = 0; viewYear++; }
+    loadMonth();
+  }
+  window.changeMonth = changeMonth;
+
+  function initCalendar(){
+    const now = new Date();
+    viewYear = now.getFullYear();
+    viewMonth = now.getMonth();
+    loadMonth();
+  }
+
+  loadAvailability();
+  initCalendar();
+</script>
+<style>
+  .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
+  .profile-sidebar{
+    width:180px; flex-shrink:0; display:flex; flex-direction:column; gap:8px;
+    border:1px solid var(--line,#eee); border-radius:10px; padding:12px; background:#fff;
+  }
+  .side-link{
+    padding:10px 12px; border-radius:8px; text-decoration:none; color:var(--ink-2,#555);
+    font-weight:500; font-size:.92rem;
+  }
+  .side-link:hover{ background:#f4f4f4; }
+  .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
+
+  .card{
+    border:1px solid var(--line,#eee); border-radius:12px; padding:20px; background:#fff;
+  }
+
+  .pill{
+    display:inline-block; border:1px solid var(--line,#ccc); border-radius:999px;
+    padding:4px 12px; font-size:.82rem; background:#f9f9f9;
+  }
+
+  .req-item{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 0; border-bottom:1px solid var(--line,#f0f0f0);
+  }
+  .req-item:last-child{ border-bottom:none; }
+
+  .calendar-grid{ margin-top:6px; }
+  .cal-weekdays{
+    display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
+    font-size:.75rem; color:var(--ink-2,#888); font-weight:600; margin-bottom:6px;
+  }
+  .cal-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-cell{
+    aspect-ratio:1; border:1px solid var(--line,#eee); border-radius:8px;
+    padding:6px; cursor:pointer; position:relative; font-size:.85rem;
+  }
+  .cal-cell:hover{ background:#f8f8f8; }
+  .cal-cell.empty{ border:none; cursor:default; }
+  .cal-cell.empty:hover{ background:none; }
+  .cal-cell.today{ border-color:var(--green,#1e7d43); border-width:2px; }
+  .cal-cell.has-class{ background:#f0f8f2; }
+  .cal-daynum{ font-weight:600; }
+  .cal-dot{
+    position:absolute; bottom:6px; right:6px; width:7px; height:7px;
+    border-radius:50%; background:var(--green,#1e7d43);
+  }
+
+  @media (max-width:720px){
+    .profile-layout{ flex-direction:column; }
+    .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; }
+    .cal-cell{ font-size:.75rem; padding:4px; }
+  }
+</style>
+</body>
+</html>
