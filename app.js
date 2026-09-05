@@ -484,6 +484,23 @@ async function fetchMyCalendar(start, end){
   return data.classes;
 }
 
+/* ---------- NEW: reviews — student rates a tutor after a completed class ---------- */
+
+// STUDENT: leave a review for a completed class (one review per class).
+async function submitReview(requestId, rating, comment){
+  const data = await apiRequest('/reviews', {
+    method: 'POST',
+    body: JSON.stringify({ requestId, rating, comment }),
+  });
+  return data.review;
+}
+
+// Public: a tutor's reviews, newest first — for their public profile page.
+async function fetchTutorReviews(tutorId){
+  const data = await apiRequest('/reviews/tutor/' + tutorId);
+  return data.reviews;
+}
+
 /* ---------- push notifications ---------- */
 function urlBase64ToUint8Array(base64String){
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
