@@ -25,6 +25,7 @@
           <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
         </a>
         <a href="payments.html" class="side-link">Payments</a>
+        <a href="hifz.html" class="side-link">Hifz Progress</a>
         <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
         <a href="#" class="side-link" onclick="logout();return false;">Log out</a>
       </aside>
@@ -374,7 +375,7 @@
   window.openStudentDetail = openStudentDetail;
   window.closeStudentModal = closeStudentModal;
 
-  /* ---------- NEW: leave-a-review modal (student only) ---------- */
+  /* ---------- leave-a-review modal (student only) ---------- */
   let selectedStars = 0;
 
   function openReviewModal(requestId, otherName){
