@@ -57,7 +57,9 @@
 
         <div class="field">
           <label>Para (Juz)</label>
-          <div id="paraPickerMount"></div>
+          <select id="paraSelect" class="plain-select">
+            <option value="">Select a Para</option>
+          </select>
         </div>
 
         <div class="field">
@@ -69,7 +71,9 @@
 
         <div class="field">
           <label>Surah</label>
-          <div id="surahPickerMount"></div>
+          <select id="surahSelect" class="plain-select">
+            <option value="">Select a surah</option>
+          </select>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -187,26 +191,26 @@ requireAuthAndProfile().then(() => {
   let entriesCache = [];
   let selectedSurah = null;
   let selectedPara = null;
-  let surahDD = null;
-  let paraDD = null;
 
   if (isTutor) {
     document.getElementById('pageTitle').textContent = "Students' Hifz Progress";
     document.getElementById('tutorControls').style.display = 'block';
-    initParaPicker();
-    initSurahPicker();
+    initParaSelect();
+    initSurahSelect();
     loadMyStudentsIntoSelect();
   }
 
-  function initParaPicker(){
-    const mount = document.getElementById('paraPickerMount');
-    const items = Array.from({ length: 30 }, (_, i) => ({ id: String(i + 1), label: `Para ${i + 1} — ${JUZ_NAMES[i]}` }));
-    paraDD = buildSearchDropdown(mount, {
-      items, single: true, placeholder: 'Tap to search and select a Para (1–30)',
-      onChange: (id) => {
-        selectedPara = Number(id);
-        refreshQuarterSelect();
-      },
+  function initParaSelect(){
+    const sel = document.getElementById('paraSelect');
+    for (let j = 1; j <= 30; j++){
+      const opt = document.createElement('option');
+      opt.value = j;
+      opt.textContent = `Para ${j} — ${JUZ_NAMES[j - 1]}`;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener('change', () => {
+      selectedPara = sel.value ? Number(sel.value) : null;
+      refreshQuarterSelect();
     });
   }
 
@@ -222,15 +226,17 @@ requireAuthAndProfile().then(() => {
       JUZ_QUARTERS.map(q => `<option value="${q}">${q}</option>`).join('');
   }
 
-  function initSurahPicker(){
-    const mount = document.getElementById('surahPickerMount');
-    const items = SURAHS.map(s => ({ id: String(s.number), label: `${s.number}. ${s.name} — ${s.ayahs} ayahs` }));
-    surahDD = buildSearchDropdown(mount, {
-      items, single: true, placeholder: 'Tap to search and select a surah',
-      onChange: (id) => {
-        selectedSurah = SURAHS.find(s => s.number === Number(id));
-        populateAyahSelects();
-      },
+  function initSurahSelect(){
+    const sel = document.getElementById('surahSelect');
+    SURAHS.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.number;
+      opt.textContent = `${s.number}. ${s.name} — ${s.ayahs} ayahs`;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', () => {
+      selectedSurah = sel.value ? SURAHS.find(s => s.number === Number(sel.value)) : null;
+      populateAyahSelects();
     });
   }
 
@@ -371,8 +377,8 @@ requireAuthAndProfile().then(() => {
         msg.textContent = 'Saved!';
         msg.style.display = 'block';
         document.getElementById('entryForm').reset();
-        surahDD.setValue('');
-        paraDD.setValue('');
+        document.getElementById('surahSelect').value = '';
+        document.getElementById('paraSelect').value = '';
         selectedSurah = null;
         selectedPara = null;
         populateAyahSelects();
