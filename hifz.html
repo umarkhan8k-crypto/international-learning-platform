@@ -156,6 +156,7 @@ requireAuthAndProfile().then(() => {
   let entriesCache = [];
   let selectedSurah = null;
   let surahDD = null;
+  const JUZ_QUARTERS = ['ربع', 'نصف', 'ثلاثہ', 'آخر'];
 
   if (isTutor) {
     document.getElementById('pageTitle').textContent = "Students' Hifz Progress";
@@ -164,8 +165,6 @@ requireAuthAndProfile().then(() => {
     initSurahPicker();
     loadMyStudentsIntoSelect();
   }
-
-  const JUZ_QUARTERS = ['ربع', 'نصف', 'ثلاثہ', 'آخر'];
 
   function initJuzSelect(){
     const sel = document.getElementById('juzInput');
