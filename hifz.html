@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hifz Progress — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .juz-grid{ display:grid; grid-template-columns:repeat(10,1fr); gap:6px; margin:16px 0 24px; }
+  .juz-cell{
+    aspect-ratio:1; border-radius:6px; display:flex; align-items:center; justify-content:center;
+    font-size:.78rem; font-weight:600; color:#fff; background:#e2e2e2; color:#999;
+  }
+  .juz-cell.memorized{ background:var(--green,#1e7d43); color:#fff; }
+  .juz-cell.memorizing{ background:#e0a30c; color:#fff; }
+  .juz-cell.revising{ background:#3b6fd6; color:#fff; }
+  .entry-row{
+    display:flex; align-items:center; justify-content:space-between; padding:12px 0;
+    border-bottom:1px solid var(--line,#eee);
+  }
+  .status-pill{ font-size:.72rem; font-weight:700; padding:2px 10px; border-radius:999px; }
+  .status-pill.MEMORIZED{ background:#e6f4ea; color:#1e7d43; }
+  .status-pill.MEMORIZING{ background:#fdf1d6; color:#a1720c; }
+  .status-pill.REVISING{ background:#e6edfb; color:#2952a3; }
+  .legend{ display:flex; gap:16px; font-size:.8rem; color:var(--ink-2,#666); margin-bottom:8px; }
+  .legend span{ display:inline-flex; align-items:center; gap:5px; }
+  .legend i{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+</style>
+</head>
+<body data-page="Hifz Progress">
+<div id="nav"></div>
+
+<section class="page-hero">
+  <div class="container">
+    <div class="eyebrow" style="justify-content:center;">Progress</div>
+    <h1 id="pageTitle">Hifz Progress</h1>
+    <p style="color:var(--ink-2);" id="pageSub">Track memorization progress, juz by juz.</p>
+  </div>
+</section>
+
+<section style="padding-top:30px;">
+  <div class="container">
+
+    <!-- Tutor only: pick a student, then add a new entry -->
+    <div id="tutorControls" class="card" style="display:none; margin-bottom:1.5rem;">
+      <h3>Add a progress entry</h3>
+      <div class="field">
+        <label>Student</label>
+        <select id="studentSelect" style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;"></select>
+      </div>
+      <form id="entryForm" style="margin-top:14px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="field"><label>Surah name</label><input id="surahName" required style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;"></div>
+          <div class="field"><label>Surah number (1–114)</label><input id="surahNumber" type="number" min="1" max="114" required style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;"></div>
+          <div class="field"><label>From ayah</label><input id="fromAyah" type="number" min="1" required style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;"></div>
+          <div class="field"><label>To ayah</label><input id="toAyah" type="number" min="1" required style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;"></div>
+          <div class="field"><label>Juz (optional)</label><input id="juzInput" type="number" min="1" max="30" style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;"></div>
+          <div class="field"><label>Status</label>
+            <select id="statusInput" style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;">
+              <option value="MEMORIZING">Memorizing</option>
+              <option value="MEMORIZED">Memorized</option>
+              <option value="REVISING">Revising</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin-top:10px;"><label>Notes (optional)</label><textarea id="notesInput" rows="2" style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;"></textarea></div>
+        <div id="formMsg" class="msg" style="display:none;margin-top:10px;"></div>
+        <button class="btn primary" type="submit" style="margin-top:12px;">Save entry</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="legend">
+        <span><i style="background:var(--green,#1e7d43);"></i> Memorized</span>
+        <span><i style="background:#e0a30c;"></i> Memorizing</span>
+        <span><i style="background:#3b6fd6;"></i> Revising</span>
+        <span><i style="background:#e2e2e2;"></i> Not started</span>
+      </div>
+      <div class="juz-grid" id="juzGrid"></div>
+
+      <h3>Entries</h3>
+      <div id="entryList"><p style="color:var(--ink-2);">Loading...</p></div>
+    </div>
+
+  </div>
+</section>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script src="authgate.js"></script>
+<script>
+requireAuthAndProfile().then(() => {
+  const user = currentUser();
+  const isTutor = user.role === 'TUTOR';
+  let currentStudentId = isTutor ? null : user.id;
+  let entriesCache = [];
+
+  if (isTutor) {
+    document.getElementById('pageTitle').textContent = "Students' Hifz Progress";
+    document.getElementById('tutorControls').style.display = 'block';
+    loadMyStudentsIntoSelect();
+  }
+
+  async function loadMyStudentsIntoSelect(){
+    try{
+      const { requests } = await fetchMyTrialRequests();
+      const accepted = requests.filter(r => r.status === 'ACCEPTED' || r.status === 'COMPLETED');
+      const map = new Map();
+      accepted.forEach(r => map.set(r.student.id, r.student));
+      const select = document.getElementById('studentSelect');
+      const students = Array.from(map.values());
+      if (!students.length){
+        select.innerHTML = '<option value="">No students yet</option>';
+        return;
+      }
+      select.innerHTML = students.map(s => `<option value="${s.id}">${s.firstName} ${s.lastName}</option>`).join('');
+      currentStudentId = select.value;
+      select.addEventListener('change', () => { currentStudentId = select.value; loadEntries(); });
+      loadEntries();
+    }catch(err){
+      document.getElementById('entryList').innerHTML = `<p style="color:var(--rose);">${err.message}</p>`;
+    }
+  }
+
+  function juzStatus(juz){
+    const rows = entriesCache.filter(e => e.juz === juz);
+    if (!rows.length) return null;
+    if (rows.some(r => r.status === 'MEMORIZED')) return 'memorized';
+    if (rows.some(r => r.status === 'REVISING')) return 'revising';
+    return 'memorizing';
+  }
+
+  function renderJuzGrid(){
+    const grid = document.getElementById('juzGrid');
+    grid.innerHTML = Array.from({length:30}, (_, i) => i+1).map(j => {
+      const st = juzStatus(j);
+      return `<div class="juz-cell ${st||''}" title="Juz ${j}">${j}</div>`;
+    }).join('');
+  }
+
+  function renderEntries(){
+    const el = document.getElementById('entryList');
+    if (!entriesCache.length){
+      el.innerHTML = '<p style="color:var(--ink-2);">No progress recorded yet.</p>';
+      return;
+    }
+    el.innerHTML = entriesCache.map(e => `
+      <div class="entry-row">
+        <div>
+          <strong>${e.surahName}</strong> (${e.fromAyah}–${e.toAyah})${e.juz ? ' · Juz ' + e.juz : ''}
+          ${e.notes ? `<div style="font-size:.82rem;color:var(--ink-2);">${e.notes}</div>` : ''}
+        </div>
+        <span class="status-pill ${e.status}">${e.status}</span>
+      </div>
+    `).join('');
+  }
+
+  async function loadEntries(){
+    if (!currentStudentId) return;
+    document.getElementById('entryList').innerHTML = '<p style="color:var(--ink-2);">Loading...</p>';
+    try{
+      const data = isTutor
+        ? await fetchStudentHifzProgress(currentStudentId)
+        : await fetchMyHifzProgress();
+      entriesCache = data || [];
+      renderJuzGrid();
+      renderEntries();
+    }catch(err){
+      document.getElementById('entryList').innerHTML = `<p style="color:var(--rose);">${err.message}</p>`;
+    }
+  }
+
+  if (!isTutor) loadEntries();
+
+  if (isTutor){
+    document.getElementById('entryForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const msg = document.getElementById('formMsg');
+      if (!currentStudentId){ return; }
+      const payload = {
+        studentId: currentStudentId,
+        surahName: document.getElementById('surahName').value.trim(),
+        surahNumber: Number(document.getElementById('surahNumber').value),
+        fromAyah: Number(document.getElementById('fromAyah').value),
+        toAyah: Number(document.getElementById('toAyah').value),
+        juz: document.getElementById('juzInput').value ? Number(document.getElementById('juzInput').value) : null,
+        status: document.getElementById('statusInput').value,
+        notes: document.getElementById('notesInput').value.trim() || null,
+      };
+      try{
+        await addHifzEntry(payload);
+        msg.className = 'msg success';
+        msg.textContent = 'Saved!';
+        msg.style.display = 'block';
+        document.getElementById('entryForm').reset();
+        loadEntries();
+        setTimeout(() => { msg.style.display = 'none'; }, 2000);
+      }catch(err){
+        msg.className = 'msg error';
+        msg.textContent = err.message;
+        msg.style.display = 'block';
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>
