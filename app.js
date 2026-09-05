@@ -501,6 +501,44 @@ async function fetchTutorReviews(tutorId){
   return data.reviews;
 }
 
+/* ---------- NEW: Hifz progress — tutor tracks memorization progress per student ---------- */
+
+// TUTOR: add a new progress entry for one of my students.
+// payload = { studentId, surahName, surahNumber, fromAyah, toAyah, juz, status, notes }
+async function addHifzEntry(payload){
+  const data = await apiRequest('/hifz', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return data.entry;
+}
+
+// STUDENT: my own Hifz progress entries (across all tutors who taught me).
+async function fetchMyHifzProgress(){
+  const data = await apiRequest('/hifz/mine');
+  return data.entries;
+}
+
+// TUTOR: a specific student's Hifz progress (only students I actually teach).
+async function fetchStudentHifzProgress(studentId){
+  const data = await apiRequest('/hifz/student/' + studentId);
+  return data.entries;
+}
+
+// TUTOR: update an entry's status and/or notes.
+async function updateHifzEntry(id, payload){
+  const data = await apiRequest('/hifz/' + id, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return data.entry;
+}
+
+// TUTOR: delete an entry (e.g. added by mistake).
+async function deleteHifzEntry(id){
+  return apiRequest('/hifz/' + id, { method: 'DELETE' });
+}
+
 /* ---------- push notifications ---------- */
 function urlBase64ToUint8Array(base64String){
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
