@@ -25,10 +25,11 @@
   .legend{ display:flex; gap:16px; font-size:.8rem; color:var(--ink-2,#666); margin-bottom:8px; }
   .legend span{ display:inline-flex; align-items:center; gap:5px; }
   .legend i{ width:10px; height:10px; border-radius:3px; display:inline-block; }
-  .ayah-select, .juz-select{
+  .plain-select{
     width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;
     background:#fff;font-family:inherit;
   }
+  .plain-select:disabled{ background:#f4f4f4; color:#999; }
 </style>
 </head>
 <body data-page="Hifz Progress">
@@ -53,34 +54,52 @@
         <select id="studentSelect" style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;"></select>
       </div>
       <form id="entryForm" style="margin-top:14px;">
+
+        <div class="field">
+          <label>Para (Juz)</label>
+          <div id="paraPickerMount"></div>
+        </div>
+
+        <div class="field">
+          <label>Which quarter of this Para?</label>
+          <select id="quarterInput" class="plain-select" disabled>
+            <option value="">Select a Para first</option>
+          </select>
+        </div>
+
         <div class="field">
           <label>Surah</label>
           <div id="surahPickerMount"></div>
         </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="field">
             <label>From ayah</label>
-            <select id="fromAyah" class="ayah-select" required disabled><option value="">Select a surah first</option></select>
+            <select id="fromAyah" class="plain-select" required disabled><option value="">Select a surah first</option></select>
           </div>
           <div class="field">
             <label>To ayah</label>
-            <select id="toAyah" class="ayah-select" required disabled><option value="">Select a surah first</option></select>
+            <select id="toAyah" class="plain-select" required disabled><option value="">Select a surah first</option></select>
           </div>
           <div class="field">
-            <label>Juz (optional)</label>
-            <select id="juzInput" class="juz-select">
-              <option value="">No juz selected</option>
+            <label>Revision type (optional)</label>
+            <select id="revisionType" class="plain-select">
+              <option value="">Not specified</option>
+              <option value="SABAQ">New lesson</option>
+              <option value="SABQI">Recent revision</option>
+              <option value="MANZIL">Old revision</option>
             </select>
           </div>
           <div class="field">
             <label>Status</label>
-            <select id="statusInput" style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;">
+            <select id="statusInput" class="plain-select">
               <option value="MEMORIZING">Memorizing</option>
               <option value="MEMORIZED">Memorized</option>
               <option value="REVISING">Revising</option>
             </select>
           </div>
         </div>
+
         <div class="field" style="margin-top:10px;"><label>Notes (optional)</label><textarea id="notesInput" rows="2" style="width:100%;padding:10px;border:1px solid var(--line,#ccc);border-radius:8px;box-sizing:border-box;"></textarea></div>
         <div id="formMsg" class="msg" style="display:none;margin-top:10px;"></div>
         <button class="btn primary" type="submit" style="margin-top:12px;">Save entry</button>
@@ -149,36 +168,49 @@ const SURAHS = [
   {number:112,name:'Al-Ikhlas',ayahs:4},{number:113,name:'Al-Falaq',ayahs:5},{number:114,name:'An-Nas',ayahs:6},
 ];
 
+const JUZ_QUARTERS = ['Quarter', 'Half', 'Three-Quarter', 'Complete'];
+const REVISION_LABELS = { SABAQ: 'New Lesson', SABQI: 'Recent Revision', MANZIL: 'Old Revision' };
+
 requireAuthAndProfile().then(() => {
   const user = currentUser();
   const isTutor = user.role === 'TUTOR';
   let currentStudentId = isTutor ? null : user.id;
   let entriesCache = [];
   let selectedSurah = null;
+  let selectedPara = null;
   let surahDD = null;
-  const JUZ_QUARTERS = ['ربع', 'نصف', 'ثلاثہ', 'آخر'];
+  let paraDD = null;
 
   if (isTutor) {
     document.getElementById('pageTitle').textContent = "Students' Hifz Progress";
     document.getElementById('tutorControls').style.display = 'block';
-    initJuzSelect();
+    initParaPicker();
     initSurahPicker();
     loadMyStudentsIntoSelect();
   }
 
-  function initJuzSelect(){
-    const sel = document.getElementById('juzInput');
-    for (let j = 1; j <= 30; j++){
-      const group = document.createElement('optgroup');
-      group.label = 'Juz ' + j;
-      JUZ_QUARTERS.forEach(q => {
-        const opt = document.createElement('option');
-        opt.value = j + '|' + q;
-        opt.textContent = `Juz ${j} — ${q}`;
-        group.appendChild(opt);
-      });
-      sel.appendChild(group);
+  function initParaPicker(){
+    const mount = document.getElementById('paraPickerMount');
+    const items = Array.from({ length: 30 }, (_, i) => ({ id: String(i + 1), label: 'Para ' + (i + 1) }));
+    paraDD = buildSearchDropdown(mount, {
+      items, single: true, placeholder: 'Tap to search and select a Para (1–30)',
+      onChange: (id) => {
+        selectedPara = Number(id);
+        refreshQuarterSelect();
+      },
+    });
+  }
+
+  function refreshQuarterSelect(){
+    const sel = document.getElementById('quarterInput');
+    if (!selectedPara){
+      sel.innerHTML = '<option value="">Select a Para first</option>';
+      sel.disabled = true;
+      return;
     }
+    sel.disabled = false;
+    sel.innerHTML = '<option value="">Select a quarter</option>' +
+      JUZ_QUARTERS.map(q => `<option value="${q}">${q}</option>`).join('');
   }
 
   function initSurahPicker(){
@@ -303,17 +335,15 @@ requireAuthAndProfile().then(() => {
         msg.style.display = 'block';
         return;
       }
-      const juzRaw = document.getElementById('juzInput').value;
-      let juzNumber = null;
-      let juzQuarterLabel = null;
-      if (juzRaw){
-        const [jNum, qLabel] = juzRaw.split('|');
-        juzNumber = Number(jNum);
-        juzQuarterLabel = qLabel;
-      }
+
+      const quarterVal = document.getElementById('quarterInput').value || null;
+      const revisionVal = document.getElementById('revisionType').value || null;
       const userNotes = document.getElementById('notesInput').value.trim();
+
       const notesParts = [];
-      if (juzQuarterLabel) notesParts.push(`Juz ${juzNumber} — ${juzQuarterLabel}`);
+      if (selectedPara && quarterVal) notesParts.push(`Para ${selectedPara} — ${quarterVal}`);
+      else if (selectedPara) notesParts.push(`Para ${selectedPara}`);
+      if (revisionVal) notesParts.push(REVISION_LABELS[revisionVal]);
       if (userNotes) notesParts.push(userNotes);
 
       const payload = {
@@ -322,7 +352,7 @@ requireAuthAndProfile().then(() => {
         surahNumber: selectedSurah.number,
         fromAyah,
         toAyah,
-        juz: juzNumber,
+        juz: selectedPara || null,
         status: document.getElementById('statusInput').value,
         notes: notesParts.length ? notesParts.join(' · ') : null,
       };
@@ -333,9 +363,11 @@ requireAuthAndProfile().then(() => {
         msg.style.display = 'block';
         document.getElementById('entryForm').reset();
         surahDD.setValue('');
+        paraDD.setValue('');
         selectedSurah = null;
+        selectedPara = null;
         populateAyahSelects();
-        document.getElementById('juzInput').value = '';
+        refreshQuarterSelect();
         loadEntries();
         setTimeout(() => { msg.style.display = 'none'; }, 2000);
       }catch(err){
