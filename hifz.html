@@ -168,8 +168,17 @@ const SURAHS = [
   {number:112,name:'Al-Ikhlas',ayahs:4},{number:113,name:'Al-Falaq',ayahs:5},{number:114,name:'An-Nas',ayahs:6},
 ];
 
-const JUZ_QUARTERS = ['Quarter', 'Half', 'Three-Quarter', 'Complete'];
+const JUZ_QUARTERS = ['Rubu', 'Nisf', 'Sulus', 'Last'];
 const REVISION_LABELS = { SABAQ: 'New Lesson', SABQI: 'Recent Revision', MANZIL: 'Old Revision' };
+
+/* ---------- traditional name of each Juz (Para), from its opening words ---------- */
+const JUZ_NAMES = [
+  'Alif Lam Meem','Sayaqoolu','Tilkal Rusul','Lan Tanaloo','Wal Muhsanat','La Yuhibbullah',
+  'Wa Iza Samiu','Wa Lau Annana','Qalal Malao','Wa A lamu','Yataziroon','Wa Ma Min Dabbatin',
+  'Wa Ma Ubarri u','Rubama','Subhanallazi','Qal Alam','Iqtaraba','Qad Aflaha',
+  'Wa Qalallazina','A man Khalaq','Utlu Ma Oohiya','Wa Man Yaqnut','Wa Mali','Faman Azlam',
+  'Ilayhi Yuraddu','Ha Meem','Qala Fama Khatbukum','Qad Sami Allah','Tabarakallazi','Amma',
+];
 
 requireAuthAndProfile().then(() => {
   const user = currentUser();
@@ -191,7 +200,7 @@ requireAuthAndProfile().then(() => {
 
   function initParaPicker(){
     const mount = document.getElementById('paraPickerMount');
-    const items = Array.from({ length: 30 }, (_, i) => ({ id: String(i + 1), label: 'Para ' + (i + 1) }));
+    const items = Array.from({ length: 30 }, (_, i) => ({ id: String(i + 1), label: `Para ${i + 1} — ${JUZ_NAMES[i]}` }));
     paraDD = buildSearchDropdown(mount, {
       items, single: true, placeholder: 'Tap to search and select a Para (1–30)',
       onChange: (id) => {
