@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parental Watch — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="">
+<div id="nav"></div>
+
+<section style="padding:40px 0;">
+  <div class="container">
+    <div id="watchWrap"><p style="color:var(--ink-2);">Loading snapshots...</p></div>
+  </div>
+</section>
+
+<!-- Lightbox for viewing a snapshot full-size -->
+<div id="lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;align-items:center;justify-content:center;padding:20px;" onclick="closeLightbox()">
+  <img id="lightboxImg" src="" style="max-width:100%;max-height:100%;border-radius:8px;">
+</div>
+
+<div id="footer"></div>
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=watch.html'; }
+  const isTutor = user.role === 'TUTOR';
+
+  function fmtStamp(iso){
+    try{
+      const d = new Date(iso);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+      const isYesterday = d.toDateString() === yesterday.toDateString();
+      const time = d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+      if (sameDay) return `Today, ${time}`;
+      if (isYesterday) return `Yesterday, ${time}`;
+      return `${d.toLocaleDateString(undefined, { month:'short', day:'numeric' })}, ${time}`;
+    }catch(e){ return ''; }
+  }
+
+  function sidebar(active){
+    const findLink = isTutor
+      ? `<a href="students.html" class="side-link ${active==='find'?'active':''}">Find Students</a>`
+      : `<a href="tutors.html" class="side-link ${active==='find'?'active':''}">Find a Tutor</a>`;
+    return `
+      <a href="dashboard.html" class="side-link">Dashboard</a>
+      <a href="profile.html" class="side-link">Profile</a>
+      ${findLink}
+      <a href="requests.html" class="side-link ${active==='requests'?'active':''}" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Requests</span>
+        <span id="requestsBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+      </a>
+      <a href="messages.html" class="side-link" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>Messages</span>
+        <span id="messagesBadge" style="display:none;background:#c0392b;color:#fff;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 7px;min-width:18px;text-align:center;"></span>
+      </a>
+      <a href="payments.html" class="side-link">Payments</a>
+      <a href="hifz.html" class="side-link">Hifz Progress</a>
+      <a href="watch.html" class="side-link ${active==='watch'?'active':''}">🛡️ Parental Watch</a>
+      <button class="side-link" id="notifBtn" style="border:none;background:none;text-align:left;cursor:pointer;width:100%;font:inherit;color:var(--ink-2,#555);display:flex;align-items:center;gap:6px;" onclick="handleEnableNotifications(this)"><span id="notifBell">🔴</span><span id="notifLabel" style="color:#c0392b;font-weight:600;">Notifications off</span></button>
+      <a href="#" class="side-link" onclick="logout();return false;">Log out</a>`;
+  }
+
+  async function refreshNotifButtonState(){
+    const bell = document.getElementById('notifBell');
+    const label = document.getElementById('notifLabel');
+    if (!bell || !label) return;
+    try{
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = registration ? await registration.pushManager.getSubscription() : null;
+      if (subscription && Notification.permission === 'granted'){
+        bell.textContent = '🟢';
+        label.textContent = 'Notifications on';
+        label.style.color = '#1e7d43';
+      }
+    }catch(err){ /* ignore */ }
+  }
+
+  async function handleEnableNotifications(btn){
+    btn.disabled = true;
+    const bell = document.getElementById('notifBell');
+    const label = document.getElementById('notifLabel');
+    try{
+      await enablePushNotifications();
+      if (bell) bell.textContent = '🟢';
+      if (label){ label.textContent = 'Notifications on'; label.style.color = '#1e7d43'; }
+    }catch(err){
+      alert(err.message);
+      btn.disabled = false;
+    }
+  }
+
+  function otherNameFromRequest(req){
+    if (!req) return 'Class';
+    return isTutor
+      ? (req.student.firstName + ' ' + req.student.lastName)
+      : (req.tutor.firstName + ' ' + req.tutor.lastName);
+  }
+
+  function groupByRequest(snapshots){
+    const map = new Map();
+    snapshots.forEach(s => {
+      if (!map.has(s.requestId)) map.set(s.requestId, { request: s.request, items: [] });
+      map.get(s.requestId).items.push(s);
+    });
+    return Array.from(map.values());
+  }
+
+  function classGroupHtml(group){
+    const name = otherNameFromRequest(group.request);
+    const thumbs = group.items.map(s => `
+      <div style="cursor:pointer;" onclick="openLightbox('${s.imageUrl}')">
+        <img src="${s.imageUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;border:1px solid var(--line,#eee);">
+        <div style="font-size:.7rem;color:var(--ink-2);margin-top:4px;">${fmtStamp(s.takenAt)}</div>
+      </div>`).join('');
+
+    return `
+      <div class="request-card" style="margin-bottom:18px;">
+        <strong>${name}</strong>
+        <span style="color:var(--ink-2);font-size:.82rem;"> — ${group.items.length} snapshot${group.items.length===1?'':'s'}</span>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-top:10px;">
+          ${thumbs}
+        </div>
+      </div>`;
+  }
+
+  function openLightbox(url){
+    document.getElementById('lightboxImg').src = url;
+    document.getElementById('lightbox').style.display = 'flex';
+  }
+  function closeLightbox(){
+    document.getElementById('lightbox').style.display = 'none';
+  }
+  window.openLightbox = openLightbox;
+  window.closeLightbox = closeLightbox;
+
+  async function load(){
+    const wrap = document.getElementById('watchWrap');
+    try{
+      const { snapshots } = await apiRequest('/snapshots');
+      const groups = groupByRequest(snapshots);
+
+      wrap.innerHTML = `
+        <div class="profile-layout">
+          <aside class="profile-sidebar">
+            ${sidebar('watch')}
+          </aside>
+          <div class="profile-card" style="flex:1;min-width:0;">
+            <h2 style="margin-top:0;">🛡️ Parental Watch</h2>
+            <p style="color:var(--ink-2);font-size:.88rem;margin-top:-8px;">
+              Safety snapshots taken automatically during live classes, at random intervals.
+            </p>
+            ${groups.length
+              ? groups.map(classGroupHtml).join('')
+              : '<p style="color:var(--ink-2);">No snapshots yet — they will appear here after a live class using the built-in classroom.</p>'}
+          </div>
+        </div>`;
+
+      refreshNotifButtonState();
+    }catch(err){
+      wrap.innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load snapshots: ${err.message}</p>`;
+    }
+  }
+
+  load();
+</script>
+<style>
+  .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
+  .profile-sidebar{
+    width:180px; flex-shrink:0; display:flex; flex-direction:column; gap:8px;
+    border:1px solid var(--line,#eee); border-radius:10px; padding:12px; background:#fff;
+  }
+  .side-link{ padding:10px 12px; border-radius:8px; text-decoration:none; color:var(--ink-2,#555); font-weight:500; font-size:.92rem; }
+  .side-link:hover{ background:#f4f4f4; }
+  .side-link.active{ background:var(--green,#1e7d43); color:#fff; }
+  .profile-card{ border:1px solid var(--line,#eee); border-radius:12px; padding:24px; background:#fff; }
+  .request-card{ border:1px solid var(--line,#eee); border-radius:10px; padding:16px; background:#fff; }
+  @media (max-width:720px){ .profile-layout{ flex-direction:column; } .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; } }
+</style>
+</body>
+</html>
