@@ -137,6 +137,15 @@
 <div id="footer"></div>
 <script src="app.js"></script>
 <script>
+// Builds the star row from the tutor's ACTUAL rating instead of always
+// showing 5 filled stars — previously hardcoded, so a tutor with 0 reviews
+// still displayed "★★★★★ New (0)", which is misleading.
+function homeStarRow(rating){
+  const r = Number(rating) || 0;
+  const full = Math.round(r);
+  return '★'.repeat(full) + '☆'.repeat(5 - full);
+}
+
 (async function(){
   try{
     const stats = await fetchStats();
@@ -149,13 +158,14 @@
     const tutors = data.tutors || [];
     document.getElementById('tutorPreview').innerHTML = tutors.map(t=>{
       const name = t.user.firstName + ' ' + t.user.lastName;
+      const hasReviews = Number(t.reviewCount) > 0;
       return `
       <div class="card tutor-card">
       <div class="tutor-top">
       <div class="avatar">${initials(name)}</div>
       <div>
       <div class="tutor-name">${name}</div>
-      <div class="tutor-meta stars">★★★★★ ${t.rating||'New'} (${t.reviewCount||0})</div>
+      <div class="tutor-meta stars">${hasReviews ? homeStarRow(t.rating) + ' ' + t.rating : 'New'} (${t.reviewCount||0})</div>
       </div>
       </div>
       <p style="font-size:.88rem;">${t.bio||''}</p>
