@@ -843,7 +843,37 @@ function renderFooter(){
     </div>`;
 }
 
+/* ---------- NEW: automatic messages-badge polling ----------
+   The messages badge (the small red unread count next to "Messages" in the
+   sidebar) previously only updated once, when a page first loaded — so a
+   message that arrived while the page was already open didn't show up until
+   a manual refresh. This checks again every 15 seconds, and immediately
+   whenever the tab becomes visible again (e.g. switching back from another
+   app), without needing any change on individual pages. */
+function startMessagesBadgePolling(intervalMs){
+  const interval = intervalMs || 15000;
+  async function tick(){
+    const badge = document.getElementById('messagesBadge');
+    if (!badge) return; // this page has no messages badge (e.g. login/register)
+    if (!currentUser()) return; // not logged in — nothing to check
+    try{
+      const count = await getUnreadMessageCount();
+      if (count > 0){
+        badge.textContent = count;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }catch(err){ /* ignore — badge just keeps its current state */ }
+  }
+  setInterval(tick, interval);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') tick();
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   renderNav(document.body.dataset.page || '');
   renderFooter();
+  startMessagesBadgePolling();
 });
