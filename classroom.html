@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Class — International Learning Platform</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://meet.jit.si/external_api.js"></script>
+<style>
+  body{ margin:0; background:#111; }
+  #topbar{
+    background:#1F5C54; color:#fff; padding:10px 16px; display:flex;
+    align-items:center; justify-content:space-between; font-family:inherit;
+  }
+  #topbar a{ color:#fff; text-decoration:none; font-size:.85rem; opacity:.9; }
+  #jitsiContainer{ width:100%; height:calc(100vh - 46px); }
+  #loadingMsg{ color:#fff; text-align:center; padding:60px 20px; font-family:inherit; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <strong>International Learning Platform — Live Class</strong>
+  <a href="dashboard.html">← Back to dashboard</a>
+</div>
+
+<div id="loadingMsg">Connecting to your class...</div>
+<div id="jitsiContainer" style="display:none;"></div>
+
+<script src="app.js"></script>
+<script>
+  const user = currentUser();
+  if (!user){ location.href = 'login.html?next=' + encodeURIComponent(location.pathname + location.search); }
+
+  const params = new URLSearchParams(location.search);
+  const requestId = params.get('request');   // trial-request ID — makes the room unique per booking
+  const displayName = user ? (user.firstName + ' ' + user.lastName) : 'Guest';
+
+  if (!requestId){
+    document.getElementById('loadingMsg').textContent = 'Missing class link. Please open this page from your Requests or Schedule page.';
+  } else {
+    // Room name is namespaced to this platform + the specific request, so two
+    // different bookings never accidentally land in the same Jitsi room.
+    const roomName = 'ILP-' + requestId.replace(/[^a-zA-Z0-9]/g, '');
+
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('jitsiContainer').style.display = 'block';
+
+    const domain = 'meet.jit.si';
+    const options = {
+      roomName: roomName,
+      parentNode: document.getElementById('jitsiContainer'),
+      width: '100%',
+      height: '100%',
+      userInfo: { displayName: displayName },
+      configOverwrite: {
+        prejoinPageEnabled: true,
+        disableDeepLinking: true,
+      },
+      interfaceConfigOverwrite: {
+        SHOW_JITSI_WATERMARK: false,
+        SHOW_WATERMARK_FOR_GUESTS: false,
+      },
+    };
+
+    const api = new JitsiMeetExternalAPI(domain, options);
+
+    // When the student/tutor leaves the call, send them back to their dashboard.
+    api.addEventListener('readyToClose', () => {
+      location.href = 'dashboard.html';
+    });
+  }
+</script>
+</body>
+</html>
