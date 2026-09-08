@@ -42,6 +42,20 @@
     }catch(e){ return ''; }
   }
 
+  // Short form for under each bubble — just the time (the header above the
+  // thread already shows the full date/day), unless the message is from a
+  // previous day, in which case we show that too.
+  function fmtBubbleStamp(iso){
+    try{
+      const d = new Date(iso);
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      const time = d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+      if (sameDay) return time;
+      return `${d.toLocaleDateString(undefined, { month:'short', day:'numeric' })}, ${time}`;
+    }catch(e){ return ''; }
+  }
+
   function escapeHtml(str){
     return String(str)
       .replace(/&/g, '&amp;')
@@ -179,10 +193,11 @@
     const msgsHtml = messages.length
       ? messages.map(m => {
           const mine = m.senderId === user.id;
-          return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:6px;">
+          return `<div style="display:flex;flex-direction:column;align-items:${mine?'flex-end':'flex-start'};margin-bottom:10px;">
             <div style="max-width:78%;padding:8px 12px;border-radius:12px;background:${mine?'var(--green,#1e7d43)':'#f0f0f0'};color:${mine?'#fff':'#222'};font-size:.88rem;white-space:pre-wrap;">
               ${linkifyMessage(m.content)}
             </div>
+            <span style="font-size:.7rem;color:var(--ink-2,#999);margin-top:3px;">${fmtBubbleStamp(m.createdAt)}</span>
           </div>`;
         }).join('')
       : '<p style="color:var(--ink-2);font-size:.85rem;">No messages yet — say hello.</p>';
@@ -244,8 +259,6 @@
         }
       }
 
-      const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-
       wrap.innerHTML = `
         <div class="profile-layout">
           <aside class="profile-sidebar">
@@ -263,7 +276,6 @@
 
       refreshNotifButtonState();
       refreshRequestsBadge(requests);
-      refreshMessagesBadgeTotal(totalUnread);
 
       const cards = wrap.querySelectorAll('.conv-card');
       for (const card of cards){
@@ -271,6 +283,13 @@
         const threadEl = card.querySelector('.conv-thread');
         await loadThreadInto(otherId, threadEl);
       }
+
+      // Every thread shown on this page just got marked as read (opening a
+      // thread marks it read on the server) — so the sidebar badge should
+      // reflect that immediately, instead of showing the count from BEFORE
+      // the threads were opened (which is what caused the badge to look
+      // "stuck" while this page was open).
+      refreshMessagesBadgeTotal(0);
 
       if (openId){
         const targetCard = wrap.querySelector(`.conv-card[data-other="${openId}"]`);
