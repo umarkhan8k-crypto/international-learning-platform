@@ -22,7 +22,6 @@
   if (!user){ location.href = 'login.html?next=requests.html'; }
   const isTutor = user.role === 'TUTOR';
 
-  const editingLinkIds = new Set();
   let lastRequests = [];
 
   function statusBadge(status){
@@ -49,46 +48,18 @@
     catch(e){ return iso; }
   }
 
-  // NEW: takes you straight to this person's thread on messages.html
+  // Takes you straight to this person's thread on messages.html
   // (messages.html reads the "open" query param to scroll to/open a thread)
   function messageButtonHtml(r){
     return `<a href="messages.html?open=${otherIdOf(r)}" class="btn ghost small message-btn">💬 Message</a>`;
   }
 
-  function quickLaunchChips(){
+  // Built-in classroom: every accepted request gets its own private
+  // Jitsi room, keyed by the request's own ID. No external link needed.
+  function classroomBlock(r){
     return `
-      <div class="quick-launch-inline">
-        <a href="https://zoom.us/start" target="_blank" rel="noopener" class="ql-chip ql-zoom">🎥 Zoom</a>
-        <a href="https://meet.google.com/new" target="_blank" rel="noopener" class="ql-chip ql-meet">📅 Meet</a>
-        <a href="https://teams.microsoft.com/start" target="_blank" rel="noopener" class="ql-chip ql-teams">👥 Teams</a>
-        <a href="https://web.skype.com/" target="_blank" rel="noopener" class="ql-chip ql-skype">☎️ Skype</a>
-        <a href="https://web.whatsapp.com/" target="_blank" rel="noopener" class="ql-chip ql-whatsapp">💬 WhatsApp</a>
-      </div>`;
-  }
-
-  function meetingLinkBlock(r){
-    const editing = editingLinkIds.has(r.id);
-
-    if (r.meetingLink && !editing){
-      return `
-        <div class="meeting-block">
-          <a href="${r.meetingLink}" target="_blank" rel="noopener" class="btn primary small join-class-btn">🎬 Join Class</a>
-          ${isTutor ? `<button type="button" class="btn ghost small" data-edit-link="${r.id}">Change link</button>` : ''}
-        </div>`;
-    }
-
-    if (!isTutor){
-      return `<p class="req-detail" style="margin-top:8px;">Waiting for your tutor to add the class link.</p>`;
-    }
-
-    return `
-      <div class="meeting-setup">
-        ${quickLaunchChips()}
-        <form class="link-form" data-save-link="${r.id}">
-          <input type="url" placeholder="Paste the class link here..." required value="${r.meetingLink || ''}">
-          <button type="submit" class="btn primary small">Save link</button>
-          ${editing ? `<button type="button" class="btn ghost small" data-cancel-edit="${r.id}">Cancel</button>` : ''}
-        </form>
+      <div class="meeting-block">
+        <a href="classroom.html?request=${r.id}" class="btn primary small join-class-btn">🎬 Start Class</a>
       </div>`;
   }
 
@@ -101,7 +72,7 @@
         </div>
         <div class="req-detail">${detailOf(r)}</div>
         ${r.scheduledAt ? `<div class="req-detail">🗓️ Class time: ${fmtDateTime(r.scheduledAt)}</div>` : ''}
-        ${meetingLinkBlock(r)}
+        ${classroomBlock(r)}
       </div>`;
   }
 
@@ -135,7 +106,6 @@
           ${statusBadge(r.status)}
         </div>
         <div class="req-detail">${detailOf(r)}</div>
-        ${r.status === 'COMPLETED' && r.meetingLink ? `<div class="req-detail">Link used: <a href="${r.meetingLink}" target="_blank" rel="noopener">${r.meetingLink}</a></div>` : ''}
         <div style="margin-top:8px;">${messageButtonHtml(r)}</div>
       </div>`;
   }
@@ -276,35 +246,6 @@
         catch(err){ alert(err.message); btn.disabled = false; }
       });
     });
-
-    wrap.querySelectorAll('[data-save-link]').forEach(form => {
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const id = form.dataset.saveLink;
-        const input = form.querySelector('input[type="url"]');
-        const btn = form.querySelector('button[type="submit"]');
-        btn.disabled = true;
-        try{
-          await saveMeetingLink(id, input.value.trim());
-          editingLinkIds.delete(id);
-          await load();
-        }catch(err){ alert(err.message); btn.disabled = false; }
-      });
-    });
-
-    wrap.querySelectorAll('[data-edit-link]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        editingLinkIds.add(btn.dataset.editLink);
-        renderAll();
-      });
-    });
-
-    wrap.querySelectorAll('[data-cancel-edit]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        editingLinkIds.delete(btn.dataset.cancelEdit);
-        renderAll();
-      });
-    });
   }
 
   async function load(){
@@ -349,21 +290,6 @@
 
   .meeting-block{ display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
   .join-class-btn{ background:#1e7d43 !important; }
-
-  .meeting-setup{ margin-top:10px; }
-  .quick-launch-inline{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
-  .ql-chip{
-    display:inline-flex; align-items:center; gap:4px; padding:6px 10px; border-radius:999px;
-    color:#fff; font-size:.78rem; font-weight:600; text-decoration:none;
-  }
-  .ql-zoom{ background:#2D8CFF; }
-  .ql-meet{ background:#00897B; }
-  .ql-teams{ background:#5059C9; }
-  .ql-skype{ background:#00AFF0; }
-  .ql-whatsapp{ background:#25D366; }
-
-  .link-form{ display:flex; flex-wrap:wrap; gap:8px; }
-  .link-form input[type="url"]{ flex:1; min-width:180px; padding:8px 12px; border:1px solid var(--line,#ccc); border-radius:8px; font-size:.85rem; }
 </style>
 </body>
 </html>
