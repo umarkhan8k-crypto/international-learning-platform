@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Live Class — International Learning Platform</title>
 <link rel="stylesheet" href="style.css">
-<script src="https://meet.jit.si/external_api.js"></script>
+<script src="https://8x8.vc/external_api.js"></script>
 <style>
   body{ margin:0; background:#111; }
   #topbar{
@@ -45,28 +45,36 @@
 
   const params = new URLSearchParams(location.search);
   const requestId = params.get('request');   // trial-request ID — makes the room unique per booking
-  const displayName = user ? (user.firstName + ' ' + user.lastName) : 'Guest';
 
   if (!requestId){
     document.getElementById('loadingMsg').textContent = 'Missing class link. Please open this page from your Requests or Schedule page.';
   } else {
-    // Room name is namespaced to this platform + the specific request, so two
-    // different bookings never accidentally land in the same Jitsi room.
-    const roomName = 'ILP-' + requestId.replace(/[^a-zA-Z0-9]/g, '');
+    joinClass();
+  }
+
+  async function joinClass(){
+    let tokenData;
+    try{
+      tokenData = await apiRequest('/jitsi-token/' + requestId);
+    }catch(err){
+      document.getElementById('loadingMsg').textContent = 'Could not start the classroom: ' + err.message;
+      return;
+    }
 
     document.getElementById('loadingMsg').style.display = 'none';
     document.getElementById('jitsiContainer').style.display = 'block';
 
-    const domain = 'meet.jit.si';
+    const displayName = user.firstName + ' ' + user.lastName;
+
     const options = {
-      roomName: roomName,
+      roomName: tokenData.roomName,
+      jwt: tokenData.token,
       parentNode: document.getElementById('jitsiContainer'),
       width: '100%',
       height: '100%',
       userInfo: { displayName: displayName },
       configOverwrite: {
         prejoinPageEnabled: true,
-        disableDeepLinking: true,
       },
       interfaceConfigOverwrite: {
         SHOW_JITSI_WATERMARK: false,
@@ -74,7 +82,7 @@
       },
     };
 
-    const api = new JitsiMeetExternalAPI(domain, options);
+    const api = new JitsiMeetExternalAPI(tokenData.domain, options);
 
     // When the student/tutor leaves the call, send them back to their dashboard.
     api.addEventListener('readyToClose', () => {
@@ -82,83 +90,82 @@
       location.href = 'dashboard.html';
     });
 
-    // ---------------- Parental Watch ----------------
-    // Jitsi's own video runs inside a separate, cross-origin iframe, which
-    // the browser does not allow this page to read pixels from (that's a
-    // deliberate security boundary, not a bug). So instead, once the call
-    // starts, this page asks for its OWN short-lived camera access — the
-    // same camera the person is already using for the call — purely to
-    // grab a still frame every few minutes. Each side (tutor's device and
-    // student's device) does this independently, so both are covered.
-
-    let watchStream = null;
-    let watchTimer = null;
-    let watchActive = false;
-
-    async function startParentalWatch(){
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-      try{
-        watchStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        const video = document.getElementById('watchVideo');
-        video.srcObject = watchStream;
-        watchActive = true;
-        scheduleNextCapture();
-      }catch(err){
-        // Camera might already be exclusively in use on some devices, or
-        // permission was denied — Parental Watch just quietly skips itself
-        // rather than interrupting the class.
-        console.warn('Parental Watch snapshot camera unavailable:', err.message);
-      }
-    }
-
-    function stopParentalWatch(){
-      watchActive = false;
-      if (watchTimer) clearTimeout(watchTimer);
-      if (watchStream){
-        watchStream.getTracks().forEach(t => t.stop());
-        watchStream = null;
-      }
-    }
-
-    function scheduleNextCapture(){
-      if (!watchActive) return;
-      // Random interval between 2 and 4 minutes — "random intervals" so
-      // the snapshot timing isn't predictable.
-      const delay = 120000 + Math.random() * 120000;
-      watchTimer = setTimeout(captureSnapshot, delay);
-    }
-
-    async function captureSnapshot(){
-      if (!watchActive) return;
-      try{
-        const video = document.getElementById('watchVideo');
-        const canvas = document.getElementById('watchCanvas');
-        if (video.videoWidth && video.videoHeight){
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-          const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.7));
-          if (blob){
-            const file = new File([blob], 'snapshot.jpg', { type: 'image/jpeg' });
-            const imageUrl = await apiUpload(file, 'image');
-            await apiRequest('/snapshots', {
-              method: 'POST',
-              body: JSON.stringify({ requestId, imageUrl }),
-            });
-          }
-        }
-      }catch(err){
-        console.warn('Parental Watch snapshot failed (skipping this one):', err.message);
-      }finally{
-        scheduleNextCapture();
-      }
-    }
-
-    // Start capturing a little after joining, so the very first frame
-    // isn't just a black/loading camera image.
+    // Start Parental Watch a little after joining.
     setTimeout(startParentalWatch, 15000);
+  }
+
+  // ---------------- Parental Watch ----------------
+  // Jitsi's own video runs inside a separate, cross-origin iframe, which
+  // the browser does not allow this page to read pixels from (that's a
+  // deliberate security boundary, not a bug). So instead, once the call
+  // starts, this page asks for its OWN short-lived camera access — the
+  // same camera the person is already using for the call — purely to
+  // grab a still frame every few minutes. Each side (tutor's device and
+  // student's device) does this independently, so both are covered.
+
+  let watchStream = null;
+  let watchTimer = null;
+  let watchActive = false;
+
+  async function startParentalWatch(){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    try{
+      watchStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const video = document.getElementById('watchVideo');
+      video.srcObject = watchStream;
+      watchActive = true;
+      scheduleNextCapture();
+    }catch(err){
+      // Camera might already be exclusively in use on some devices, or
+      // permission was denied — Parental Watch just quietly skips itself
+      // rather than interrupting the class.
+      console.warn('Parental Watch snapshot camera unavailable:', err.message);
+    }
+  }
+
+  function stopParentalWatch(){
+    watchActive = false;
+    if (watchTimer) clearTimeout(watchTimer);
+    if (watchStream){
+      watchStream.getTracks().forEach(t => t.stop());
+      watchStream = null;
+    }
+  }
+
+  function scheduleNextCapture(){
+    if (!watchActive) return;
+    // Random interval between 2 and 4 minutes — "random intervals" so
+    // the snapshot timing isn't predictable.
+    const delay = 120000 + Math.random() * 120000;
+    watchTimer = setTimeout(captureSnapshot, delay);
+  }
+
+  async function captureSnapshot(){
+    if (!watchActive) return;
+    try{
+      const video = document.getElementById('watchVideo');
+      const canvas = document.getElementById('watchCanvas');
+      if (video.videoWidth && video.videoHeight){
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.7));
+        if (blob){
+          const file = new File([blob], 'snapshot.jpg', { type: 'image/jpeg' });
+          const imageUrl = await apiUpload(file, 'image');
+          await apiRequest('/snapshots', {
+            method: 'POST',
+            body: JSON.stringify({ requestId, imageUrl }),
+          });
+        }
+      }
+    }catch(err){
+      console.warn('Parental Watch snapshot failed (skipping this one):', err.message);
+    }finally{
+      scheduleNextCapture();
+    }
   }
 </script>
 </body>
