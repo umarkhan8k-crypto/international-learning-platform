@@ -44,10 +44,13 @@
   if (!user){ location.href = 'login.html?next=' + encodeURIComponent(location.pathname + location.search); }
 
   const params = new URLSearchParams(location.search);
-  const requestId = params.get('request');   // trial-request ID — makes the room unique per booking
+  // "with" = the other person's user ID — the classroom is a PERSISTENT
+  // room shared by this pair of people, available any time either side
+  // wants a class, regardless of any specific booking's status.
+  const otherUserId = params.get('with') || params.get('request'); // "request" kept for old links
 
-  if (!requestId){
-    document.getElementById('loadingMsg').textContent = 'Missing class link. Please open this page from your Requests or Schedule page.';
+  if (!otherUserId){
+    document.getElementById('loadingMsg').textContent = 'Missing class link. Please open this page from your Requests or Messages page.';
   } else {
     joinClass();
   }
@@ -55,7 +58,7 @@
   async function joinClass(){
     let tokenData;
     try{
-      tokenData = await apiRequest('/jitsi-token/' + requestId);
+      tokenData = await apiRequest('/jitsi-token/' + otherUserId);
     }catch(err){
       document.getElementById('loadingMsg').textContent = 'Could not start the classroom: ' + err.message;
       return;
@@ -84,25 +87,15 @@
 
     const api = new JitsiMeetExternalAPI(tokenData.domain, options);
 
-    // When the student/tutor leaves the call, send them back to their dashboard.
     api.addEventListener('readyToClose', () => {
       stopParentalWatch();
       location.href = 'dashboard.html';
     });
 
-    // Start Parental Watch a little after joining.
     setTimeout(startParentalWatch, 15000);
   }
 
   // ---------------- Parental Watch ----------------
-  // Jitsi's own video runs inside a separate, cross-origin iframe, which
-  // the browser does not allow this page to read pixels from (that's a
-  // deliberate security boundary, not a bug). So instead, once the call
-  // starts, this page asks for its OWN short-lived camera access — the
-  // same camera the person is already using for the call — purely to
-  // grab a still frame every few minutes. Each side (tutor's device and
-  // student's device) does this independently, so both are covered.
-
   let watchStream = null;
   let watchTimer = null;
   let watchActive = false;
@@ -116,9 +109,6 @@
       watchActive = true;
       scheduleNextCapture();
     }catch(err){
-      // Camera might already be exclusively in use on some devices, or
-      // permission was denied — Parental Watch just quietly skips itself
-      // rather than interrupting the class.
       console.warn('Parental Watch snapshot camera unavailable:', err.message);
     }
   }
@@ -134,8 +124,6 @@
 
   function scheduleNextCapture(){
     if (!watchActive) return;
-    // Random interval between 2 and 4 minutes — "random intervals" so
-    // the snapshot timing isn't predictable.
     const delay = 120000 + Math.random() * 120000;
     watchTimer = setTimeout(captureSnapshot, delay);
   }
@@ -157,7 +145,7 @@
           const imageUrl = await apiUpload(file, 'image');
           await apiRequest('/snapshots', {
             method: 'POST',
-            body: JSON.stringify({ requestId, imageUrl }),
+            body: JSON.stringify({ otherUserId, imageUrl }),
           });
         }
       }
