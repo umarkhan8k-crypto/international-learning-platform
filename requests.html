@@ -59,7 +59,7 @@
   function classroomBlock(r){
     return `
       <div class="meeting-block">
-        <a href="classroom.html?request=${r.id}" class="btn primary small join-class-btn">🎬 Start Class</a>
+        <a href="classroom.html?with=${otherIdOf(r)}" class="btn primary small join-class-btn">🎬 Start Class</a>
       </div>`;
   }
 
@@ -106,7 +106,10 @@
           ${statusBadge(r.status)}
         </div>
         <div class="req-detail">${detailOf(r)}</div>
-        <div style="margin-top:8px;">${messageButtonHtml(r)}</div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+          ${messageButtonHtml(r)}
+          ${r.status === 'COMPLETED' ? `<a href="classroom.html?with=${otherIdOf(r)}" class="btn primary small join-class-btn">🎬 Start Class</a>` : ''}
+        </div>
       </div>`;
   }
 
