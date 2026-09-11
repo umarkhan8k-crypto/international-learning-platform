@@ -15,15 +15,24 @@
       <aside class="profile-sidebar" id="scheduleSidebar"></aside>
 
       <div style="flex:1;min-width:0;">
-        <h2 style="margin:0 0 1rem;">My Schedule</h2>
 
-        <div id="availabilityCard" class="card" style="display:none;margin-bottom:1.5rem;">
-          <h3 style="margin-top:0;">Weekly Availability</h3>
-          <p style="margin:.2em 0 14px;color:var(--ink-2);font-size:.85rem;">Set the times you're generally free each week. Students see this before sending you a trial request.</p>
-          <div id="availabilityDays"></div>
+        <div class="sched-head">
+          <div class="eyebrow">Teaching hours</div>
+          <h2 style="margin:0;">My Schedule</h2>
+          <p style="margin:.35em 0 0;color:var(--ink-2);font-size:.9rem;">Set when you're free each week, then keep an eye on what's already booked.</p>
+        </div>
 
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--line,#eee);">
-            <select id="addDay" style="padding:8px 10px;border:1px solid var(--line,#ccc);border-radius:8px;">
+        <div id="availabilityCard" class="card sched-card" style="display:none;">
+          <div class="sched-card-head">
+            <h3 style="margin:0;">Weekly availability</h3>
+            <span style="font-size:.82rem;color:var(--ink-2);">Visible to students before they request a trial</span>
+          </div>
+
+          <div id="availabilityDays" class="week-strip"></div>
+
+          <div class="add-slot-bar">
+            <span class="add-slot-label">Add a slot</span>
+            <select id="addDay">
               <option value="0">Sunday</option>
               <option value="1">Monday</option>
               <option value="2">Tuesday</option>
@@ -32,30 +41,34 @@
               <option value="5">Friday</option>
               <option value="6">Saturday</option>
             </select>
-            <input type="time" id="addStart" style="padding:8px 10px;border:1px solid var(--line,#ccc);border-radius:8px;">
-            <span style="color:var(--ink-2);">to</span>
-            <input type="time" id="addEnd" style="padding:8px 10px;border:1px solid var(--line,#ccc);border-radius:8px;">
-            <button class="btn ghost small" onclick="addSlot()">+ Add slot</button>
+            <input type="time" id="addStart">
+            <span class="add-slot-to">to</span>
+            <input type="time" id="addEnd">
+            <button class="btn primary small" onclick="addSlot()">+ Add</button>
           </div>
 
-          <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
-            <button class="btn primary small" onclick="saveAvailability()">Save availability</button>
-            <span id="availStatus" style="font-size:.85rem;"></span>
+          <div class="sched-save-row">
+            <button class="btn gold small" onclick="saveAvailability()">Save availability</button>
+            <span id="availStatus" class="save-status"></span>
           </div>
         </div>
 
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-            <h3 style="margin:0;">Booked Classes</h3>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <button class="btn ghost small" onclick="changeMonth(-1)">‹</button>
-              <span id="monthLabel" style="font-weight:600;min-width:130px;text-align:center;display:inline-block;"></span>
-              <button class="btn ghost small" onclick="changeMonth(1)">›</button>
+        <div class="card sched-card">
+          <div class="sched-card-head">
+            <h3 style="margin:0;">Booked classes</h3>
+            <div class="month-nav">
+              <button class="month-arrow" onclick="changeMonth(-1)" aria-label="Previous month">‹</button>
+              <span id="monthLabel"></span>
+              <button class="month-arrow" onclick="changeMonth(1)" aria-label="Next month">›</button>
             </div>
           </div>
-          <div id="calendarGrid" class="calendar-grid"></div>
-          <div id="dayDetail" style="margin-top:16px;"></div>
+
+          <div class="cal-shell">
+            <div id="calendarGrid" class="calendar-grid"></div>
+            <div id="dayDetail" class="agenda-panel"></div>
+          </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -151,22 +164,38 @@
 
   /* ---------- Weekly availability (tutors only) ---------- */
   const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   let mySlots = [];
+
+  function fmtTime(t){
+    // t is "HH:MM" 24h -> "h:MMam/pm"
+    const [hStr, m] = t.split(':');
+    let h = Number(hStr);
+    const ap = h >= 12 ? 'pm' : 'am';
+    h = h % 12; if (h === 0) h = 12;
+    return `${h}:${m}${ap}`;
+  }
 
   function renderAvailability(){
     const el = document.getElementById('availabilityDays');
-    if (!mySlots.length){
-      el.innerHTML = '<p style="color:var(--ink-2);font-size:.9rem;">No availability set yet — add your first slot below.</p>';
-      return;
-    }
+    const todayIdx = new Date().getDay();
     const byDay = DAY_NAMES.map((_, d) => mySlots.filter(s => s.dayOfWeek === d));
-    el.innerHTML = DAY_NAMES.map((name, d) => {
-      if (!byDay[d].length) return '';
-      const chips = byDay[d].map((s) => {
-        const globalIdx = mySlots.indexOf(s);
-        return `<span class="pill" style="cursor:pointer;margin:3px 6px 3px 0;display:inline-block;" onclick="removeSlot(${globalIdx})">${s.startTime}–${s.endTime} ✕</span>`;
-      }).join('');
-      return `<div style="margin-bottom:10px;"><strong style="font-size:.85rem;">${name}</strong><div>${chips}</div></div>`;
+
+    el.innerHTML = DAY_SHORT.map((name, d) => {
+      const slots = byDay[d];
+      const slotsHtml = slots.length
+        ? slots.map(s => {
+            const globalIdx = mySlots.indexOf(s);
+            return `<button type="button" class="avail-slot" onclick="removeSlot(${globalIdx})" title="Remove">
+                      <span>${fmtTime(s.startTime)}–${fmtTime(s.endTime)}</span>
+                      <span class="avail-slot-x">✕</span>
+                    </button>`;
+          }).join('')
+        : `<span class="avail-empty">Off</span>`;
+      return `<div class="week-col ${d===todayIdx?'today':''}">
+                <div class="week-col-head">${name}</div>
+                <div class="week-col-body">${slotsHtml}</div>
+              </div>`;
     }).join('');
   }
 
@@ -190,16 +219,16 @@
 
   async function saveAvailability(){
     const status = document.getElementById('availStatus');
-    status.textContent = 'Saving...';
-    status.style.color = 'var(--ink-2)';
+    status.textContent = 'Saving…';
+    status.className = 'save-status pending';
     try{
       mySlots = await saveMyAvailability(mySlots);
       renderAvailability();
       status.textContent = 'Saved ✓';
-      status.style.color = '#1e7d43';
+      status.className = 'save-status success';
     }catch(err){
       status.textContent = 'Could not save: ' + err.message;
-      status.style.color = '#c0392b';
+      status.className = 'save-status error';
     }
   }
   window.saveAvailability = saveAvailability;
@@ -218,6 +247,7 @@
   /* ---------- Monthly calendar of booked classes ---------- */
   let viewYear, viewMonth; // viewMonth: 0-11
   let monthClasses = [];
+  let selectedDay = null;
 
   function otherPartyName(c){
     const person = isTutor ? c.student : c.tutor;
@@ -237,8 +267,9 @@
     }catch(err){
       monthClasses = [];
     }
+    selectedDay = null;
     renderCalendarGrid();
-    document.getElementById('dayDetail').innerHTML = '';
+    renderAgendaEmpty();
   }
 
   function classesOnDay(y, m, d){
@@ -254,34 +285,53 @@
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const today = new Date();
 
-    let html = '<div class="cal-weekdays">' + DAY_NAMES.map(d => `<div>${d.slice(0,3)}</div>`).join('') + '</div>';
+    let html = '<div class="cal-weekdays">' + DAY_SHORT.map(d => `<div>${d}</div>`).join('') + '</div>';
     html += '<div class="cal-days">';
     for (let i = 0; i < firstDay; i++) html += '<div class="cal-cell empty"></div>';
     for (let d = 1; d <= daysInMonth; d++){
       const dayClasses = classesOnDay(viewYear, viewMonth, d);
       const isToday = today.getFullYear()===viewYear && today.getMonth()===viewMonth && today.getDate()===d;
-      html += `<div class="cal-cell ${isToday?'today':''} ${dayClasses.length?'has-class':''}" onclick="showDay(${d})">
+      const isSelected = selectedDay === d;
+      html += `<button type="button" class="cal-cell ${isToday?'today':''} ${dayClasses.length?'has-class':''} ${isSelected?'selected':''}" onclick="showDay(${d})">
         <span class="cal-daynum">${d}</span>
-        ${dayClasses.length ? `<span class="cal-dot"></span>` : ''}
-      </div>`;
+        ${dayClasses.length ? `<span class="cal-dot">${dayClasses.length > 1 ? dayClasses.length : ''}</span>` : ''}
+      </button>`;
     }
     html += '</div>';
     grid.innerHTML = html;
   }
 
+  function renderAgendaEmpty(){
+    document.getElementById('dayDetail').innerHTML = `
+      <div class="agenda-empty">
+        <div class="agenda-empty-icon">🗓</div>
+        <p>Tap a date to see what's booked.</p>
+      </div>`;
+  }
+
   function showDay(d){
+    selectedDay = d;
+    renderCalendarGrid();
     const dayClasses = classesOnDay(viewYear, viewMonth, d);
     const el = document.getElementById('dayDetail');
+    const dateLabel = new Date(viewYear, viewMonth, d).toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+
     if (!dayClasses.length){
-      el.innerHTML = `<p style="color:var(--ink-2);font-size:.9rem;">No classes on ${formatMonthLabel(viewYear, viewMonth).split(' ')[0]} ${d}.</p>`;
+      el.innerHTML = `
+        <div class="agenda-head">${dateLabel}</div>
+        <div class="agenda-empty">
+          <div class="agenda-empty-icon">☕</div>
+          <p>No classes booked. Enjoy the downtime.</p>
+        </div>`;
       return;
     }
-    el.innerHTML = `<h4 style="margin:0 0 8px;font-size:.95rem;">Classes on ${formatMonthLabel(viewYear, viewMonth).split(' ')[0]} ${d}</h4>` +
+    el.innerHTML = `<div class="agenda-head">${dateLabel}</div>` +
       dayClasses.map(c => `
-        <div class="req-item">
-          <div>
-            <strong>${otherPartyName(c)}</strong><br>
-            <span style="font-size:.82rem;color:var(--ink-2);">${new Date(c.scheduledAt).toLocaleTimeString(undefined, {hour:'2-digit', minute:'2-digit'})}${c.meetingLink ? ' · <a href="'+c.meetingLink+'" target="_blank">Join class</a>' : ''}</span>
+        <div class="agenda-item">
+          <div class="agenda-time">${new Date(c.scheduledAt).toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'})}</div>
+          <div class="agenda-info">
+            <div class="agenda-name">${otherPartyName(c)}</div>
+            ${c.meetingLink ? `<a href="${c.meetingLink}" target="_blank" class="agenda-join">Join class</a>` : ''}
           </div>
         </div>
       `).join('');
@@ -323,42 +373,145 @@
     border:1px solid var(--line,#eee); border-radius:12px; padding:20px; background:#fff;
   }
 
-  .pill{
-    display:inline-block; border:1px solid var(--line,#ccc); border-radius:999px;
-    padding:4px 12px; font-size:.82rem; background:#f9f9f9;
-  }
-
   .req-item{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding:10px 0; border-bottom:1px solid var(--line,#f0f0f0);
   }
   .req-item:last-child{ border-bottom:none; }
 
-  .calendar-grid{ margin-top:6px; }
+  /* ===================================================================
+     Schedule page — distinct treatment
+     =================================================================== */
+  .sched-head{ margin-bottom:22px; }
+  .sched-head .eyebrow{ margin-bottom:.5em; }
+
+  .sched-card{ margin-bottom:22px; }
+  .sched-card-head{
+    display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--line);
+  }
+  .sched-card-head h3{ font-size:1.1rem; }
+
+  /* week strip */
+  .week-strip{
+    display:grid; grid-template-columns:repeat(7,1fr); gap:8px;
+  }
+  .week-col{
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    padding:8px 6px; display:flex; flex-direction:column; gap:6px; min-height:96px;
+  }
+  .week-col.today{ border-color:var(--brand); background:var(--brand-light); }
+  .week-col-head{
+    font-size:.7rem; font-weight:700; color:var(--ink-2); text-align:center;
+    letter-spacing:.03em; padding-bottom:6px; border-bottom:1px solid var(--line);
+  }
+  .week-col.today .week-col-head{ color:var(--brand-dark); border-color:rgba(14,124,74,.25); }
+  .week-col-body{ display:flex; flex-direction:column; gap:5px; flex:1; }
+  .avail-slot{
+    display:flex; align-items:center; justify-content:space-between; gap:4px;
+    background:#fff; border:1px solid rgba(14,124,74,.28); border-radius:7px;
+    padding:5px 7px; font-size:.72rem; font-weight:600; color:var(--brand-dark);
+    cursor:pointer; font-family:var(--sans); text-align:left;
+  }
+  .avail-slot:hover{ border-color:var(--rose); background:rgba(178,58,58,.05); }
+  .avail-slot:hover .avail-slot-x{ color:var(--rose); }
+  .avail-slot-x{ color:var(--ink-2); font-size:.68rem; flex:none; }
+  .avail-empty{
+    margin:auto; font-size:.7rem; color:var(--ink-2); opacity:.6; text-align:center;
+  }
+
+  .add-slot-bar{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    background:var(--surface); border:1px solid var(--line); border-radius:999px;
+    padding:7px 8px 7px 16px; margin-top:16px;
+  }
+  .add-slot-label{ font-size:.8rem; font-weight:600; color:var(--ink-2); margin-inline-end:2px; }
+  .add-slot-bar select, .add-slot-bar input[type="time"]{
+    border:1px solid var(--line); background:#fff; border-radius:999px;
+    padding:7px 12px; font-family:var(--sans); font-size:.84rem; color:var(--ink);
+    outline:none;
+  }
+  .add-slot-bar select:focus, .add-slot-bar input[type="time"]:focus{ border-color:var(--brand); }
+  .add-slot-to{ font-size:.82rem; color:var(--ink-2); }
+
+  .sched-save-row{ display:flex; align-items:center; gap:12px; margin-top:16px; }
+  .save-status{ font-size:.84rem; font-weight:600; }
+  .save-status.success{ color:var(--brand-dark); }
+  .save-status.error{ color:var(--rose); }
+  .save-status.pending{ color:var(--ink-2); }
+
+  /* month nav */
+  .month-nav{ display:flex; align-items:center; gap:10px; }
+  .month-arrow{
+    width:30px; height:30px; border-radius:50%; border:1px solid var(--line); background:#fff;
+    color:var(--brand-dark); font-size:1rem; cursor:pointer; line-height:1;
+  }
+  .month-arrow:hover{ border-color:var(--brand); color:var(--brand); }
+  #monthLabel{ font-family:var(--serif); font-weight:700; min-width:150px; text-align:center; display:inline-block; }
+
+  /* calendar + agenda split */
+  .cal-shell{ display:grid; grid-template-columns:1fr 240px; gap:22px; align-items:start; }
+  .calendar-grid{ min-width:0; }
   .cal-weekdays{
     display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
-    font-size:.75rem; color:var(--ink-2,#888); font-weight:600; margin-bottom:6px;
+    font-size:.72rem; color:var(--ink-2); font-weight:700; margin-bottom:8px; letter-spacing:.03em;
   }
-  .cal-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
   .cal-cell{
-    aspect-ratio:1; border:1px solid var(--line,#eee); border-radius:8px;
-    padding:6px; cursor:pointer; position:relative; font-size:.85rem;
+    aspect-ratio:1; border:1px solid var(--line); border-radius:10px; background:#fff;
+    padding:0; cursor:pointer; position:relative; font-family:var(--sans);
+    display:flex; align-items:flex-start; justify-content:flex-start;
   }
-  .cal-cell:hover{ background:#f8f8f8; }
-  .cal-cell.empty{ border:none; cursor:default; }
-  .cal-cell.empty:hover{ background:none; }
-  .cal-cell.today{ border-color:var(--green,#1e7d43); border-width:2px; }
-  .cal-cell.has-class{ background:#f0f8f2; }
-  .cal-daynum{ font-weight:600; }
+  .cal-cell.empty{ border:none; background:none; cursor:default; }
+  .cal-daynum{
+    font-family:var(--serif); font-weight:700; font-size:.95rem; color:var(--ink);
+    padding:8px 0 0 9px;
+  }
+  .cal-cell:not(.empty):hover{ border-color:var(--brand); }
+  .cal-cell.today{ border-color:var(--brand); border-width:2px; }
+  .cal-cell.today .cal-daynum{ color:var(--brand-dark); }
+  .cal-cell.has-class{ background:var(--brand-light); }
+  .cal-cell.selected{ box-shadow:0 0 0 2px var(--brand) inset; }
   .cal-dot{
-    position:absolute; bottom:6px; right:6px; width:7px; height:7px;
-    border-radius:50%; background:var(--green,#1e7d43);
+    position:absolute; bottom:7px; right:7px; min-width:9px; height:9px;
+    border-radius:999px; background:var(--gold); color:var(--brand-dark);
+    font-size:.62rem; font-weight:800; display:flex; align-items:center; justify-content:center;
+    padding:0 3px;
+  }
+
+  .agenda-panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:16px; min-height:220px; align-self:stretch;
+  }
+  .agenda-head{
+    font-family:var(--serif); font-weight:700; font-size:.98rem; color:var(--brand-dark);
+    margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--line);
+  }
+  .agenda-empty{ text-align:center; padding:26px 6px; color:var(--ink-2); }
+  .agenda-empty-icon{ font-size:1.5rem; margin-bottom:8px; }
+  .agenda-empty p{ font-size:.84rem; margin:0; }
+  .agenda-item{ display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
+  .agenda-item:last-child{ border-bottom:none; }
+  .agenda-time{
+    font-size:.78rem; font-weight:700; color:var(--brand); flex:none; width:64px;
+  }
+  .agenda-name{ font-weight:600; font-size:.88rem; }
+  .agenda-join{ font-size:.78rem; color:var(--brand); font-weight:600; }
+
+  @media (max-width:900px){
+    .cal-shell{ grid-template-columns:1fr; }
+    .agenda-panel{ min-height:auto; }
   }
 
   @media (max-width:720px){
     .profile-layout{ flex-direction:column; }
     .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; }
-    .cal-cell{ font-size:.75rem; padding:4px; }
+    .week-strip{ grid-template-columns:repeat(4,1fr); }
+    .cal-cell{ font-size:.75rem; }
+    .cal-daynum{ font-size:.82rem; padding:6px 0 0 6px; }
+  }
+  @media (max-width:460px){
+    .week-strip{ grid-template-columns:repeat(3,1fr); }
   }
 </style>
 </body>
