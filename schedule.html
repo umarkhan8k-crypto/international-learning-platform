@@ -19,38 +19,23 @@
         <div class="sched-head">
           <div class="eyebrow">Teaching hours</div>
           <h2 style="margin:0;">My Schedule</h2>
-          <p style="margin:.35em 0 0;color:var(--ink-2);font-size:.9rem;">Set when you're free each week, then keep an eye on what's already booked.</p>
+          <p style="margin:.35em 0 0;color:var(--ink-2);font-size:.9rem;">Tap and drag across the grid to mark yourself free. Changes save automatically.</p>
         </div>
 
         <div id="availabilityCard" class="card sched-card" style="display:none;">
           <div class="sched-card-head">
             <h3 style="margin:0;">Weekly availability</h3>
-            <span style="font-size:.82rem;color:var(--ink-2);">Visible to students before they request a trial</span>
-          </div>
-
-          <div id="availabilityDays" class="week-strip"></div>
-
-          <div class="add-slot-bar">
-            <span class="add-slot-label">Add a slot</span>
-            <select id="addDay">
-              <option value="0">Sunday</option>
-              <option value="1">Monday</option>
-              <option value="2">Tuesday</option>
-              <option value="3">Wednesday</option>
-              <option value="4">Thursday</option>
-              <option value="5">Friday</option>
-              <option value="6">Saturday</option>
-            </select>
-            <input type="time" id="addStart">
-            <span class="add-slot-to">to</span>
-            <input type="time" id="addEnd">
-            <button class="btn primary small" onclick="addSlot()">+ Add</button>
-          </div>
-
-          <div class="sched-save-row">
-            <button class="btn gold small" onclick="saveAvailability()">Save availability</button>
             <span id="availStatus" class="save-status"></span>
           </div>
+
+          <div class="tz-row">
+            <label for="tzSelect">Your timezone</label>
+            <select id="tzSelect" onchange="onTimezoneChange()"></select>
+            <span id="tzCurrentTime" class="tz-current"></span>
+          </div>
+
+          <div id="hourGrid" class="hour-grid"></div>
+          <p class="hg-hint">Green = you're free. Click a cell to add it, click again to remove it. Click and drag to select a range fast.</p>
         </div>
 
         <div class="card sched-card">
@@ -165,7 +150,12 @@
   /* ---------- Weekly availability (tutors only) ---------- */
   const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const GRID_START_HOUR = 6;   // grid shows 6am
+  const GRID_END_HOUR   = 23;  // ...through 11pm
   let mySlots = [];
+  let myTimezone = 'UTC';
+  let dragMode = null; // 'add' | 'remove' | null — lets a click-drag toggle a whole range at once
+  let autoSaveTimer = null;
 
   function fmtTime(t){
     // t is "HH:MM" 24h -> "h:MMam/pm"
@@ -176,71 +166,111 @@
     return `${h}:${m}${ap}`;
   }
 
-  function renderAvailability(){
-    const el = document.getElementById('availabilityDays');
-    const todayIdx = new Date().getDay();
-    const byDay = DAY_NAMES.map((_, d) => mySlots.filter(s => s.dayOfWeek === d));
-
-    el.innerHTML = DAY_SHORT.map((name, d) => {
-      const slots = byDay[d];
-      const slotsHtml = slots.length
-        ? slots.map(s => {
-            const globalIdx = mySlots.indexOf(s);
-            return `<button type="button" class="avail-slot" onclick="removeSlot(${globalIdx})" title="Remove">
-                      <span>${fmtTime(s.startTime)}–${fmtTime(s.endTime)}</span>
-                      <span class="avail-slot-x">✕</span>
-                    </button>`;
-          }).join('')
-        : `<span class="avail-empty">Off</span>`;
-      return `<div class="week-col ${d===todayIdx?'today':''}">
-                <div class="week-col-head">${name}</div>
-                <div class="week-col-body">${slotsHtml}</div>
-              </div>`;
-    }).join('');
+  /* ---------- Timezone picker ---------- */
+  function populateTimezones(){
+    const sel = document.getElementById('tzSelect');
+    const zones = (typeof Intl.supportedValuesOf === 'function')
+      ? Intl.supportedValuesOf('timeZone')
+      : [Intl.DateTimeFormat().resolvedOptions().timeZone];
+    sel.innerHTML = zones.map(z => `<option value="${z}">${z.replace(/_/g,' ')}</option>`).join('');
+    sel.value = myTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    updateTzClock();
   }
-
-  function addSlot(){
-    const dayOfWeek = Number(document.getElementById('addDay').value);
-    const startTime = document.getElementById('addStart').value;
-    const endTime = document.getElementById('addEnd').value;
-    if (!startTime || !endTime){ alert('Please choose both a start and end time.'); return; }
-    if (startTime >= endTime){ alert('End time must be after start time.'); return; }
-    mySlots.push({ dayOfWeek, startTime, endTime });
-    mySlots.sort((a,b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
-    renderAvailability();
+  function updateTzClock(){
+    const sel = document.getElementById('tzSelect');
+    const now = new Date().toLocaleTimeString('en-US', { timeZone: sel.value, hour:'numeric', minute:'2-digit' });
+    document.getElementById('tzCurrentTime').textContent = 'Current time there: ' + now;
   }
-  window.addSlot = addSlot;
-
-  function removeSlot(idx){
-    mySlots.splice(idx, 1);
-    renderAvailability();
-  }
-  window.removeSlot = removeSlot;
-
-  async function saveAvailability(){
+  async function onTimezoneChange(){
+    myTimezone = document.getElementById('tzSelect').value;
+    updateTzClock();
     const status = document.getElementById('availStatus');
-    status.textContent = 'Saving…';
-    status.className = 'save-status pending';
     try{
-      mySlots = await saveMyAvailability(mySlots);
-      renderAvailability();
-      status.textContent = 'Saved ✓';
-      status.className = 'save-status success';
+      await saveProfile(user.email, { timezone: myTimezone });
+      if (status){ status.textContent = 'Timezone saved ✓'; status.className = 'save-status success'; }
     }catch(err){
-      status.textContent = 'Could not save: ' + err.message;
-      status.className = 'save-status error';
+      if (status){ status.textContent = 'Could not save timezone: ' + err.message; status.className = 'save-status error'; }
     }
   }
-  window.saveAvailability = saveAvailability;
+  window.onTimezoneChange = onTimezoneChange;
+
+  /* ---------- Hour-grid picker (drag to select, like Preply/Calendly) ---------- */
+  function isFilled(day, hour){
+    const t = String(hour).padStart(2,'0') + ':00';
+    return mySlots.some(s => s.dayOfWeek === day && s.startTime <= t && s.endTime > t);
+  }
+
+  function renderHourGrid(){
+    const el = document.getElementById('hourGrid');
+    let html = '<div class="hg-corner"></div>';
+    DAY_SHORT.forEach(d => html += `<div class="hg-day-head">${d}</div>`);
+
+    for (let h = GRID_START_HOUR; h < GRID_END_HOUR; h++){
+      html += `<div class="hg-hour-label">${fmtTime(String(h).padStart(2,'0')+':00')}</div>`;
+      for (let d = 0; d < 7; d++){
+        const filled = isFilled(d, h);
+        html += `<div class="hg-cell ${filled?'filled':''}" data-day="${d}" data-hour="${h}"></div>`;
+      }
+    }
+    el.innerHTML = html;
+
+    el.querySelectorAll('.hg-cell').forEach(cell => {
+      cell.addEventListener('mousedown', (e) => {
+        dragMode = cell.classList.contains('filled') ? 'remove' : 'add';
+        toggleCell(cell, dragMode);
+        e.preventDefault();
+      });
+      cell.addEventListener('mouseenter', () => { if (dragMode) toggleCell(cell, dragMode); });
+      // touch support for mobile
+      cell.addEventListener('touchstart', (e) => {
+        dragMode = cell.classList.contains('filled') ? 'remove' : 'add';
+        toggleCell(cell, dragMode);
+      }, { passive: true });
+    });
+    document.addEventListener('mouseup', () => { if (dragMode){ dragMode = null; scheduleAutoSave(); } });
+    document.addEventListener('touchend', () => { if (dragMode){ dragMode = null; scheduleAutoSave(); } });
+  }
+
+  function toggleCell(cell, mode){
+    const day = Number(cell.dataset.day);
+    const hour = Number(cell.dataset.hour);
+    const start = String(hour).padStart(2,'0') + ':00';
+    const end = String(hour+1).padStart(2,'0') + ':00';
+
+    if (mode === 'add' && !cell.classList.contains('filled')){
+      mySlots.push({ dayOfWeek: day, startTime: start, endTime: end });
+      cell.classList.add('filled');
+    } else if (mode === 'remove' && cell.classList.contains('filled')){
+      mySlots = mySlots.filter(s => !(s.dayOfWeek === day && s.startTime === start));
+      cell.classList.remove('filled');
+    }
+  }
+
+  function scheduleAutoSave(){
+    const status = document.getElementById('availStatus');
+    if (status){ status.textContent = 'Saving…'; status.className = 'save-status pending'; }
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(async () => {
+      try{
+        mySlots = await saveMyAvailability(mySlots);
+        if (status){ status.textContent = 'Saved ✓'; status.className = 'save-status success'; }
+      }catch(err){
+        if (status){ status.textContent = 'Could not save: ' + err.message; status.className = 'save-status error'; }
+      }
+    }, 800);
+  }
 
   async function loadAvailability(){
     if (!isTutor) return;
     document.getElementById('availabilityCard').style.display = 'block';
     try{
-      mySlots = await fetchMyAvailability();
-      renderAvailability();
+      const [slots, profile] = await Promise.all([ fetchMyAvailability(), getMyProfile() ]);
+      mySlots = slots;
+      myTimezone = (profile && profile.timezone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+      populateTimezones();
+      renderHourGrid();
     }catch(err){
-      document.getElementById('availabilityDays').innerHTML = `<p style="color:var(--rose,#c0392b);">Could not load availability: ${err.message}</p>`;
+      document.getElementById('hourGrid').innerHTML = `<p style="color:var(--rose,#c0392b);grid-column:1/-1;">Could not load availability: ${err.message}</p>`;
     }
   }
 
@@ -392,49 +422,30 @@
   }
   .sched-card-head h3{ font-size:1.1rem; }
 
-  /* week strip */
-  .week-strip{
-    display:grid; grid-template-columns:repeat(7,1fr); gap:8px;
-  }
-  .week-col{
-    background:var(--surface); border:1px solid var(--line); border-radius:10px;
-    padding:8px 6px; display:flex; flex-direction:column; gap:6px; min-height:96px;
-  }
-  .week-col.today{ border-color:var(--brand); background:var(--brand-light); }
-  .week-col-head{
-    font-size:.7rem; font-weight:700; color:var(--ink-2); text-align:center;
-    letter-spacing:.03em; padding-bottom:6px; border-bottom:1px solid var(--line);
-  }
-  .week-col.today .week-col-head{ color:var(--brand-dark); border-color:rgba(14,124,74,.25); }
-  .week-col-body{ display:flex; flex-direction:column; gap:5px; flex:1; }
-  .avail-slot{
-    display:flex; align-items:center; justify-content:space-between; gap:4px;
-    background:#fff; border:1px solid rgba(14,124,74,.28); border-radius:7px;
-    padding:5px 7px; font-size:.72rem; font-weight:600; color:var(--brand-dark);
-    cursor:pointer; font-family:var(--sans); text-align:left;
-  }
-  .avail-slot:hover{ border-color:var(--rose); background:rgba(178,58,58,.05); }
-  .avail-slot:hover .avail-slot-x{ color:var(--rose); }
-  .avail-slot-x{ color:var(--ink-2); font-size:.68rem; flex:none; }
-  .avail-empty{
-    margin:auto; font-size:.7rem; color:var(--ink-2); opacity:.6; text-align:center;
-  }
+  /* timezone row */
+  .tz-row{ display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+  .tz-row label{ font-size:.82rem; font-weight:600; color:var(--ink-2); }
+  .tz-row select{ padding:7px 12px; border:1px solid var(--line); border-radius:8px; font-family:var(--sans); font-size:.85rem; }
+  .tz-current{ font-size:.8rem; color:var(--ink-2); }
 
-  .add-slot-bar{
-    display:flex; gap:8px; flex-wrap:wrap; align-items:center;
-    background:var(--surface); border:1px solid var(--line); border-radius:999px;
-    padding:7px 8px 7px 16px; margin-top:16px;
+  /* hour grid picker */
+  .hour-grid{
+    display:grid;
+    grid-template-columns:64px repeat(7,1fr);
+    gap:2px;
+    user-select:none;
+    -webkit-user-select:none;
   }
-  .add-slot-label{ font-size:.8rem; font-weight:600; color:var(--ink-2); margin-inline-end:2px; }
-  .add-slot-bar select, .add-slot-bar input[type="time"]{
-    border:1px solid var(--line); background:#fff; border-radius:999px;
-    padding:7px 12px; font-family:var(--sans); font-size:.84rem; color:var(--ink);
-    outline:none;
+  .hg-corner{ }
+  .hg-day-head{ text-align:center; font-size:.72rem; font-weight:700; color:var(--ink-2); padding:4px 0; }
+  .hg-hour-label{ font-size:.68rem; color:var(--ink-2); text-align:right; padding-right:6px; align-self:center; }
+  .hg-cell{
+    height:22px; background:var(--surface); border:1px solid var(--line); border-radius:3px; cursor:pointer;
   }
-  .add-slot-bar select:focus, .add-slot-bar input[type="time"]:focus{ border-color:var(--brand); }
-  .add-slot-to{ font-size:.82rem; color:var(--ink-2); }
+  .hg-cell:hover{ border-color:var(--brand); }
+  .hg-cell.filled{ background:var(--brand); border-color:var(--brand-dark); }
+  .hg-hint{ font-size:.76rem; color:var(--ink-2); margin:12px 0 0; }
 
-  .sched-save-row{ display:flex; align-items:center; gap:12px; margin-top:16px; }
   .save-status{ font-size:.84rem; font-weight:600; }
   .save-status.success{ color:var(--brand-dark); }
   .save-status.error{ color:var(--rose); }
@@ -506,12 +517,10 @@
   @media (max-width:720px){
     .profile-layout{ flex-direction:column; }
     .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; }
-    .week-strip{ grid-template-columns:repeat(4,1fr); }
+    .hour-grid{ grid-template-columns:44px repeat(7,1fr); }
+    .hg-cell{ height:18px; }
     .cal-cell{ font-size:.75rem; }
     .cal-daynum{ font-size:.82rem; padding:6px 0 0 6px; }
-  }
-  @media (max-width:460px){
-    .week-strip{ grid-template-columns:repeat(3,1fr); }
   }
 </style>
 </body>
