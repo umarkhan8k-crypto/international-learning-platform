@@ -157,6 +157,19 @@
   let dragMode = null; // 'add' | 'remove' | null — lets a click-drag toggle a whole range at once
   let autoSaveTimer = null;
 
+  // A safe, wide fallback list of IANA timezones — used only on old browsers
+  // that don't support Intl.supportedValuesOf('timeZone'). Covers every
+  // major region so a saved value (like Asia/Karachi) is always found.
+  const FALLBACK_TIMEZONES = [
+    'UTC','Pacific/Midway','Pacific/Honolulu','America/Anchorage','America/Los_Angeles',
+    'America/Denver','America/Chicago','America/New_York','America/Sao_Paulo',
+    'Atlantic/Azores','Europe/London','Europe/Paris','Europe/Berlin','Europe/Moscow',
+    'Africa/Cairo','Africa/Lagos','Africa/Johannesburg','Asia/Istanbul','Asia/Dubai',
+    'Asia/Karachi','Asia/Kolkata','Asia/Dhaka','Asia/Bangkok','Asia/Jakarta',
+    'Asia/Shanghai','Asia/Singapore','Asia/Tokyo','Asia/Seoul','Australia/Perth',
+    'Australia/Sydney','Pacific/Auckland',
+  ];
+
   function fmtTime(t){
     // t is "HH:MM" 24h -> "h:MMam/pm"
     const [hStr, m] = t.split(':');
@@ -166,20 +179,44 @@
     return `${h}:${m}${ap}`;
   }
 
-  /* ---------- Timezone picker ---------- */
+  function isValidTimezone(tz){
+    try{ new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; }
+    catch(e){ return false; }
+  }
+
+  /* ---------- Timezone picker (isolated — never blocks the grid below) ---------- */
   function populateTimezones(){
-    const sel = document.getElementById('tzSelect');
-    const zones = (typeof Intl.supportedValuesOf === 'function')
-      ? Intl.supportedValuesOf('timeZone')
-      : [Intl.DateTimeFormat().resolvedOptions().timeZone];
-    sel.innerHTML = zones.map(z => `<option value="${z}">${z.replace(/_/g,' ')}</option>`).join('');
-    sel.value = myTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-    updateTzClock();
+    try{
+      const sel = document.getElementById('tzSelect');
+      let zones = (typeof Intl.supportedValuesOf === 'function')
+        ? Intl.supportedValuesOf('timeZone')
+        : FALLBACK_TIMEZONES.slice();
+
+      const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (!zones.includes(browserTz)) zones.push(browserTz);
+      if (myTimezone && !zones.includes(myTimezone)) zones.push(myTimezone);
+      zones.sort();
+
+      sel.innerHTML = zones.map(z => `<option value="${z}">${z.replace(/_/g,' ')}</option>`).join('');
+
+      const wanted = (myTimezone && isValidTimezone(myTimezone)) ? myTimezone : browserTz;
+      sel.value = wanted;
+      if (sel.value !== wanted){ sel.selectedIndex = 0; } // last-resort safety net
+      myTimezone = sel.value;
+      updateTzClock();
+    }catch(err){
+      // Timezone picker is a nice-to-have — if it fails for any reason,
+      // the availability grid below must still work.
+      const tzBox = document.querySelector('.tz-row');
+      if (tzBox) tzBox.style.display = 'none';
+    }
   }
   function updateTzClock(){
-    const sel = document.getElementById('tzSelect');
-    const now = new Date().toLocaleTimeString('en-US', { timeZone: sel.value, hour:'numeric', minute:'2-digit' });
-    document.getElementById('tzCurrentTime').textContent = 'Current time there: ' + now;
+    try{
+      const sel = document.getElementById('tzSelect');
+      const now = new Date().toLocaleTimeString('en-US', { timeZone: sel.value, hour:'numeric', minute:'2-digit' });
+      document.getElementById('tzCurrentTime').textContent = 'Current time there: ' + now;
+    }catch(err){ /* ignore — clock label is cosmetic only */ }
   }
   async function onTimezoneChange(){
     myTimezone = document.getElementById('tzSelect').value;
@@ -260,18 +297,29 @@
     }, 800);
   }
 
+  // Slots and timezone are now loaded and rendered INDEPENDENTLY. If the
+  // timezone picker fails for any reason on an old browser, the grid still
+  // loads and tutors can still set their hours — a cosmetic feature must
+  // never take down the core one.
   async function loadAvailability(){
     if (!isTutor) return;
     document.getElementById('availabilityCard').style.display = 'block';
+
     try{
-      const [slots, profile] = await Promise.all([ fetchMyAvailability(), getMyProfile() ]);
-      mySlots = slots;
-      myTimezone = (profile && profile.timezone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
-      populateTimezones();
+      mySlots = await fetchMyAvailability();
       renderHourGrid();
     }catch(err){
       document.getElementById('hourGrid').innerHTML = `<p style="color:var(--rose,#c0392b);grid-column:1/-1;">Could not load availability: ${err.message}</p>`;
+      return; // no point trying the timezone box if we don't even have a tutor id context
     }
+
+    try{
+      const profile = await getMyProfile();
+      myTimezone = (profile && profile.timezone) || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }catch(err){
+      myTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+    populateTimezones();
   }
 
   /* ---------- Monthly calendar of booked classes ---------- */
