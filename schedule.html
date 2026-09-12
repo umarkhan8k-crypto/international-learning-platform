@@ -55,6 +55,9 @@
           <div style="overflow-x:auto;">
             <table class="preview-table" id="previewTable"></table>
           </div>
+          <div style="margin-top:16px;">
+            <button type="button" class="btn ghost small" id="editScheduleBtn">Edit Schedule</button>
+          </div>
         </div>
 
         <div class="card sched-card">
@@ -225,19 +228,30 @@
 
   function defaultRow(){ return { dayOfWeek: 0, startTime: '10:30', endTime: '14:00' }; }
 
-  async function loadWeeklyRows(){
+  function showEditor(){
     document.getElementById('weeklyAvailCard').style.display = 'block';
+    document.getElementById('previewCard').style.display = 'none';
+  }
+  function showPreview(){
+    renderPreview();
+    document.getElementById('weeklyAvailCard').style.display = 'none';
+    document.getElementById('previewCard').style.display = 'block';
+  }
+  document.getElementById('editScheduleBtn').addEventListener('click', showEditor);
+
+  async function loadWeeklyRows(){
     try{
       const slots = await fetchMyAvailability();
       rows = slots.map(s => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime }));
     }catch(err){
       rows = [];
+      document.getElementById('weeklyAvailCard').style.display = 'block';
       document.getElementById('availMsg').textContent = 'Could not load your schedule: ' + err.message;
       document.getElementById('availMsg').style.color = '#c0392b';
     }
     savedRows = JSON.parse(JSON.stringify(rows));
     renderRows();
-    renderPreview();
+    if (rows.length){ showPreview(); } else { showEditor(); }
   }
 
   /* ---------- dated preview: same next-7-days x half-hour grid students see ---------- */
@@ -321,9 +335,9 @@
   document.getElementById('availCancelBtn').addEventListener('click', () => {
     rows = JSON.parse(JSON.stringify(savedRows));
     renderRows();
-    renderPreview();
     const msg = document.getElementById('availMsg');
     msg.textContent = ''; msg.style.color = '';
+    if (rows.length){ showPreview(); }
   });
 
   document.getElementById('availSaveBtn').addEventListener('click', async () => {
@@ -342,9 +356,9 @@
       rows = saved.map(s => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime }));
       savedRows = JSON.parse(JSON.stringify(rows));
       renderRows();
-      renderPreview();
       msg.textContent = 'Saved!';
       msg.style.color = '#1e7d43';
+      showPreview();
     }catch(err){
       msg.textContent = err.message;
       msg.style.color = '#c0392b';
