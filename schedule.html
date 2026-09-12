@@ -37,19 +37,16 @@
           </div>
         </div>
 
-        <div class="card sched-card cal-card">
-          <div class="cal-header">
-            <button type="button" class="cal-nav-btn" id="calPrevBtn" aria-label="Previous month">‹</button>
-            <div class="cal-title" id="calTitle">—</div>
-            <button type="button" class="cal-nav-btn" id="calNextBtn" aria-label="Next month">›</button>
+        <div id="weeklyAvailCard" class="card sched-card" style="display:none;">
+          <h3 style="margin:0 0 4px;">Availability Schedule</h3>
+          <p style="margin:0 0 18px;color:var(--ink-2);font-size:.88rem;">Add the days and times you're free to teach. Each one repeats every week.</p>
+          <div id="availRows"></div>
+          <button type="button" class="add-day-btn" id="addDayBtn">+ Add Day</button>
+          <div style="display:flex;gap:10px;margin-top:20px;">
+            <button type="button" class="btn ghost small" id="availCancelBtn">Cancel</button>
+            <button type="button" class="btn primary small" id="availSaveBtn">Save</button>
           </div>
-          <div class="cal-grid cal-weekday-row">
-            <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div>
-            <div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div>
-            <div class="cal-weekday">Sat</div>
-          </div>
-          <div class="cal-grid" id="calGrid"></div>
-          <p id="calHint" style="margin:14px 0 0;color:var(--ink-2);font-size:.8rem;"></p>
+          <p id="availMsg" style="margin:12px 0 0;font-size:.84rem;font-weight:600;"></p>
         </div>
 
         <div class="card sched-card">
@@ -209,225 +206,100 @@
   loadAvailability();
 
   /* ================================================================
-     Full month calendar.
-     - Tutors: tap any date to set weekly recurring hours for that
-       weekday (e.g. every Monday 9–10am). Backed by the existing
-       AvailabilitySlot (dayOfWeek + startTime + endTime) API, so the
-       same hours apply to every occurrence of that weekday.
-     - Everyone: booked classes for the month are shown on their exact
-       date.
+     Weekly Availability Schedule — flat list of {dayOfWeek, startTime,
+     endTime} rows, exactly matching the AvailabilitySlot backend model.
+     Each row = one recurring weekly block (e.g. every Sunday 10:30 AM–
+     12:00 PM). Tutor can add/remove rows freely, then Save replaces
+     the whole list on the server.
      ================================================================ */
-  let viewDate = new Date(); viewDate.setDate(1); viewDate.setHours(0,0,0,0);
-  let weeklySlots = [];   // [{id, dayOfWeek, startTime, endTime}]
-  let monthClasses = [];  // [{id, scheduledAt, tutor:{...}, student:{...}, ...}]
-  let editingDayOfWeek = null;
-  let editingLocalSlots = [];
+  let rows = [];       // working copy being edited
+  let savedRows = [];  // last-saved snapshot, for Cancel
 
-  document.getElementById('calHint').textContent = isTutor
-    ? "Tap a date to set your hours for that day of the week — it repeats every week."
-    : "Tap a date to see your scheduled classes that day.";
+  function defaultRow(){ return { dayOfWeek: 0, startTime: '10:30', endTime: '14:00' }; }
 
-  function monthLabel(d){ return d.toLocaleString('en-US', { month: 'long', year: 'numeric' }); }
-
-  function formatTime12(hhmm){
-    const [h, m] = hhmm.split(':').map(Number);
-    const period = h >= 12 ? 'PM' : 'AM';
-    const h12 = (h % 12) === 0 ? 12 : (h % 12);
-    return `${h12}:${String(m).padStart(2,'0')} ${period}`;
-  }
-
-  async function loadWeeklySlots(){
-    if (!isTutor) return;
-    try{ weeklySlots = await fetchMyAvailability(); }
-    catch(err){ weeklySlots = []; }
-  }
-
-  async function loadMonthClasses(){
-    const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
-    const end = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0, 23, 59, 59);
-    try{ monthClasses = await fetchMyCalendar(start.toISOString(), end.toISOString()); }
-    catch(err){ monthClasses = []; }
-  }
-
-  function classesOnDate(dateObj){
-    return monthClasses.filter(c => {
-      if (!c.scheduledAt) return false;
-      const cd = new Date(c.scheduledAt);
-      return cd.getFullYear() === dateObj.getFullYear() && cd.getMonth() === dateObj.getMonth() && cd.getDate() === dateObj.getDate();
-    });
-  }
-
-  function renderCalendarGrid(){
-    document.getElementById('calTitle').textContent = monthLabel(viewDate);
-    const grid = document.getElementById('calGrid');
-    const year = viewDate.getFullYear(), month = viewDate.getMonth();
-    const firstDayIndex = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const today = new Date();
-
-    let html = '';
-    for (let i = 0; i < firstDayIndex; i++) html += `<div class="cal-cell empty"></div>`;
-
-    for (let day = 1; day <= daysInMonth; day++){
-      const dateObj = new Date(year, month, day);
-      const dow = dateObj.getDay();
-      const isToday = dateObj.toDateString() === today.toDateString();
-      const daySlots = isTutor ? weeklySlots.filter(s => s.dayOfWeek === dow) : [];
-      const dayClasses = classesOnDate(dateObj);
-
-      let itemsHtml = '';
-      let shown = 0;
-      daySlots.slice(0, 2).forEach(s => {
-        itemsHtml += `<div class="cal-slot-pill">${formatTime12(s.startTime)}</div>`;
-        shown++;
-      });
-      dayClasses.slice(0, Math.max(0, 2 - shown)).forEach(c => {
-        const other = isTutor ? c.student : c.tutor;
-        const name = other ? other.firstName : 'Class';
-        itemsHtml += `<div class="cal-class-pill">📌 ${name}</div>`;
-      });
-      const totalItems = daySlots.length + dayClasses.length;
-      const extra = totalItems - Math.min(2, totalItems);
-
-      html += `<div class="cal-cell${isToday ? ' today' : ''}" data-dow="${dow}" data-day="${day}">
-        <div class="cal-date-num">${day}</div>
-        ${itemsHtml}
-        ${extra > 0 ? `<div class="cal-more">+${extra} more</div>` : ''}
-      </div>`;
+  async function loadWeeklyRows(){
+    document.getElementById('weeklyAvailCard').style.display = 'block';
+    try{
+      const slots = await fetchMyAvailability();
+      rows = slots.map(s => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime }));
+    }catch(err){
+      rows = [];
+      document.getElementById('availMsg').textContent = 'Could not load your schedule: ' + err.message;
+      document.getElementById('availMsg').style.color = '#c0392b';
     }
-
-    grid.innerHTML = html;
-    grid.querySelectorAll('.cal-cell:not(.empty)').forEach(cell => {
-      cell.addEventListener('click', () => {
-        const dow = Number(cell.dataset.dow);
-        const day = Number(cell.dataset.day);
-        if (isTutor){
-          openDayEditor(dow);
-        } else {
-          const dateObj = new Date(year, month, day);
-          const classes = classesOnDate(dateObj);
-          if (!classes.length){ return; }
-          const lines = classes.map(c => {
-            const t = new Date(c.scheduledAt);
-            const tutorName = c.tutor ? `${c.tutor.firstName} ${c.tutor.lastName}` : 'Tutor';
-            return `${t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} — ${tutorName}`;
-          }).join('\n');
-          alert(lines);
-        }
-      });
-    });
+    savedRows = JSON.parse(JSON.stringify(rows));
+    renderRows();
   }
 
-  /* ---------- weekly-hours editor modal (tutor only) ---------- */
-  function openDayEditor(dayOfWeek){
-    editingDayOfWeek = dayOfWeek;
-    editingLocalSlots = weeklySlots
-      .filter(s => s.dayOfWeek === dayOfWeek)
-      .map(s => ({ startTime: s.startTime, endTime: s.endTime }));
-    renderModal();
-  }
-
-  function renderModal(){
-    let overlay = document.getElementById('dayModalOverlay');
-    if (!overlay){
-      overlay = document.createElement('div');
-      overlay.id = 'dayModalOverlay';
-      overlay.className = 'modal-overlay';
-      document.body.appendChild(overlay);
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-    }
-    const dayName = SCHEDULE_DAY_NAMES[editingDayOfWeek];
-    overlay.innerHTML = `
-      <div class="modal-box">
-        <h3>${dayName}s</h3>
-        <p style="margin:0 0 12px;color:var(--ink-2);font-size:.85rem;">Set the hours you're free to teach every ${dayName}. This repeats every week.</p>
-        <div id="timeRows"></div>
-        <button type="button" class="add-time-btn" id="addTimeBtn">+ Add a time range</button>
-        <div style="display:flex;gap:10px;margin-top:18px;">
-          <button type="button" class="btn ghost small" style="flex:1;" id="cancelModalBtn">Cancel</button>
-          <button type="button" class="btn primary small" style="flex:1;" id="saveModalBtn">Save</button>
-        </div>
-      </div>`;
-    document.getElementById('addTimeBtn').onclick = () => {
-      editingLocalSlots.push({ startTime: '09:00', endTime: '10:00' });
-      renderTimeRows();
-    };
-    document.getElementById('cancelModalBtn').onclick = closeModal;
-    document.getElementById('saveModalBtn').onclick = saveDayEditor;
-    renderTimeRows();
-    overlay.style.display = 'flex';
-  }
-
-  function renderTimeRows(){
-    const container = document.getElementById('timeRows');
-    if (!editingLocalSlots.length){
-      container.innerHTML = `<p style="color:var(--ink-2);font-size:.85rem;">No hours set for this day yet.</p>`;
+  function renderRows(){
+    const container = document.getElementById('availRows');
+    if (!rows.length){
+      container.innerHTML = `<p style="color:var(--ink-2);font-size:.85rem;">No availability added yet — tap "+ Add Day" to get started.</p>`;
       return;
     }
-    container.innerHTML = editingLocalSlots.map((s, i) => `
-      <div class="time-row">
-        <input type="time" value="${s.startTime}" data-i="${i}" data-field="startTime">
-        <span style="color:var(--ink-2);font-size:.8rem;">to</span>
-        <input type="time" value="${s.endTime}" data-i="${i}" data-field="endTime">
-        <button type="button" class="remove-time" data-i="${i}" aria-label="Remove">✕</button>
+    container.innerHTML = rows.map((r, i) => `
+      <div class="avail-row">
+        <div class="avail-field-row">
+          <label>Start At<input type="time" class="row-start" data-i="${i}" value="${r.startTime}"></label>
+          <label>End At<input type="time" class="row-end" data-i="${i}" value="${r.endTime}"></label>
+        </div>
+        <div class="avail-field-row">
+          <label style="flex:1;">Day
+            <select class="row-day" data-i="${i}">
+              ${SCHEDULE_DAY_NAMES.map((d, idx) => `<option value="${idx}" ${idx === r.dayOfWeek ? 'selected' : ''}>${d}</option>`).join('')}
+            </select>
+          </label>
+          <button type="button" class="remove-day-btn" data-i="${i}">Remove Day</button>
+        </div>
       </div>`).join('');
-    container.querySelectorAll('input[type=time]').forEach(inp => {
-      inp.addEventListener('change', () => {
-        const i = Number(inp.dataset.i);
-        editingLocalSlots[i][inp.dataset.field] = inp.value;
-      });
-    });
-    container.querySelectorAll('.remove-time').forEach(btn => {
-      btn.addEventListener('click', () => {
-        editingLocalSlots.splice(Number(btn.dataset.i), 1);
-        renderTimeRows();
-      });
-    });
+
+    container.querySelectorAll('.row-start').forEach(inp => inp.addEventListener('change', () => { rows[Number(inp.dataset.i)].startTime = inp.value; }));
+    container.querySelectorAll('.row-end').forEach(inp => inp.addEventListener('change', () => { rows[Number(inp.dataset.i)].endTime = inp.value; }));
+    container.querySelectorAll('.row-day').forEach(sel => sel.addEventListener('change', () => { rows[Number(sel.dataset.i)].dayOfWeek = Number(sel.value); }));
+    container.querySelectorAll('.remove-day-btn').forEach(btn => btn.addEventListener('click', () => {
+      rows.splice(Number(btn.dataset.i), 1);
+      renderRows();
+    }));
   }
 
-  function closeModal(){
-    const overlay = document.getElementById('dayModalOverlay');
-    if (overlay) overlay.style.display = 'none';
-  }
+  document.getElementById('addDayBtn').addEventListener('click', () => {
+    rows.push(defaultRow());
+    renderRows();
+  });
 
-  async function saveDayEditor(){
-    const saveBtn = document.getElementById('saveModalBtn');
+  document.getElementById('availCancelBtn').addEventListener('click', () => {
+    rows = JSON.parse(JSON.stringify(savedRows));
+    renderRows();
+    const msg = document.getElementById('availMsg');
+    msg.textContent = ''; msg.style.color = '';
+  });
+
+  document.getElementById('availSaveBtn').addEventListener('click', async () => {
+    const msg = document.getElementById('availMsg');
+    const saveBtn = document.getElementById('availSaveBtn');
+    for (const r of rows){
+      if (!r.startTime || !r.endTime || r.endTime <= r.startTime){
+        msg.textContent = 'Each row needs an End At time later than its Start At time.';
+        msg.style.color = '#c0392b';
+        return;
+      }
+    }
     saveBtn.disabled = true; saveBtn.textContent = 'Saving...';
     try{
-      for (const s of editingLocalSlots){
-        if (!s.startTime || !s.endTime || s.endTime <= s.startTime){
-          throw new Error('Each time range needs an end time after its start time.');
-        }
-      }
-      const otherDays = weeklySlots
-        .filter(s => s.dayOfWeek !== editingDayOfWeek)
-        .map(s => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime }));
-      const thisDay = editingLocalSlots.map(s => ({ dayOfWeek: editingDayOfWeek, startTime: s.startTime, endTime: s.endTime }));
-      weeklySlots = await saveMyAvailability([...otherDays, ...thisDay]);
-      closeModal();
-      renderCalendarGrid();
+      const saved = await saveMyAvailability(rows);
+      rows = saved.map(s => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime }));
+      savedRows = JSON.parse(JSON.stringify(rows));
+      renderRows();
+      msg.textContent = 'Saved!';
+      msg.style.color = '#1e7d43';
     }catch(err){
-      alert(err.message);
+      msg.textContent = err.message;
+      msg.style.color = '#c0392b';
     }
     saveBtn.disabled = false; saveBtn.textContent = 'Save';
-  }
-
-  document.getElementById('calPrevBtn').addEventListener('click', async () => {
-    viewDate.setMonth(viewDate.getMonth() - 1);
-    await loadMonthClasses();
-    renderCalendarGrid();
-  });
-  document.getElementById('calNextBtn').addEventListener('click', async () => {
-    viewDate.setMonth(viewDate.getMonth() + 1);
-    await loadMonthClasses();
-    renderCalendarGrid();
   });
 
-  async function initCalendar(){
-    await Promise.all([loadWeeklySlots(), loadMonthClasses()]);
-    renderCalendarGrid();
-  }
-  initCalendar();
+  if (isTutor) loadWeeklyRows();
 </script>
 <style>
   .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
@@ -464,53 +336,28 @@
   .toggle-switch.on .toggle-knob{ left:27px; }
   .toggle-switch:disabled{ opacity:.6; cursor:default; }
 
-  /* ---------- calendar ---------- */
-  .cal-card{ overflow-x:auto; }
-  .cal-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
-  .cal-nav-btn{ background:none; border:1px solid var(--line,#ddd); border-radius:8px; padding:4px 14px; cursor:pointer; font-size:1.1rem; line-height:1; color:var(--ink); }
-  .cal-nav-btn:hover{ background:#f4f4f4; }
-  .cal-title{ font-family:var(--serif); font-weight:700; font-size:1.05rem; color:var(--ink); }
-  .cal-grid{ display:grid; grid-template-columns:repeat(7, minmax(38px, 1fr)); gap:4px; }
-  .cal-weekday-row{ margin-bottom:6px; }
-  .cal-weekday{ text-align:center; font-size:.66rem; font-weight:700; color:var(--ink-2); padding:2px 0; text-transform:uppercase; letter-spacing:.02em; }
-  .cal-cell{
-    min-height:60px; border:1px solid var(--line,#eee); border-radius:8px; padding:4px;
-    display:flex; flex-direction:column; gap:2px; overflow:hidden; cursor:pointer; background:#fff;
+  /* ---------- weekly availability rows ---------- */
+  .avail-row{ border:1px solid var(--line,#eee); border-radius:10px; padding:14px; margin-bottom:12px; background:#fafafa; }
+  .avail-field-row{ display:flex; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  .avail-field-row:last-child{ margin-bottom:0; align-items:flex-end; }
+  .avail-field-row label{ flex:1; min-width:120px; display:flex; flex-direction:column; gap:4px; font-size:.76rem; color:var(--ink-2); font-weight:600; }
+  .avail-field-row input[type=time], .avail-field-row select{
+    padding:8px; border:1px solid var(--line,#ccc); border-radius:6px; font-size:.9rem; background:#fff; box-sizing:border-box;
   }
-  .cal-cell:hover{ border-color:var(--brand); }
-  .cal-cell.empty{ border:none; cursor:default; background:transparent; }
-  .cal-cell.today{ border-color:var(--brand); border-width:2px; }
-  .cal-date-num{ font-weight:700; font-size:.74rem; color:var(--ink); }
-  .cal-slot-pill{
-    background:var(--brand-light,#e6f4ea); color:var(--brand-dark,#1e7d43); border-radius:4px;
-    padding:1px 4px; font-size:.6rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  .remove-day-btn{
+    background:var(--brand,#1e7d43); color:#fff; border:none; border-radius:6px; padding:9px 14px;
+    font-size:.82rem; font-weight:600; cursor:pointer; white-space:nowrap; flex:none;
   }
-  .cal-class-pill{
-    background:#eaf1fb; color:#1a56b0; border-radius:4px; padding:1px 4px;
-    font-size:.6rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  .remove-day-btn:hover{ opacity:.9; }
+  .add-day-btn{
+    background:var(--brand,#1e7d43); color:#fff; border:none; border-radius:6px; padding:9px 18px;
+    font-size:.85rem; font-weight:600; cursor:pointer;
   }
-  .cal-more{ font-size:.58rem; color:var(--ink-2); }
-
-  /* ---------- day editor modal ---------- */
-  .modal-overlay{
-    position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
-    align-items:center; justify-content:center; z-index:10000; padding:16px;
-  }
-  .modal-box{ background:#fff; border-radius:12px; padding:20px; max-width:380px; width:100%; max-height:80vh; overflow:auto; }
-  .modal-box h3{ margin:0 0 4px; font-family:var(--serif); color:var(--ink); }
-  .time-row{ display:flex; align-items:center; gap:8px; margin:8px 0; }
-  .time-row input[type=time]{ flex:1; padding:6px; border:1px solid var(--line,#ccc); border-radius:6px; min-width:0; }
-  .remove-time{ background:none; border:none; color:#c0392b; font-size:1.05rem; cursor:pointer; flex:none; }
-  .add-time-btn{
-    background:none; border:1px dashed var(--line,#ccc); border-radius:8px; padding:8px; width:100%;
-    cursor:pointer; color:var(--brand); font-weight:600; margin-top:6px;
-  }
+  .add-day-btn:hover{ opacity:.9; }
 
   @media (max-width:720px){
     .profile-layout{ flex-direction:column; }
     .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; }
-    .cal-grid{ grid-template-columns:repeat(7, minmax(34px, 1fr)); }
-    .cal-cell{ min-height:52px; padding:3px; }
   }
 </style>
 </body>
