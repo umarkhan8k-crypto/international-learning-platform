@@ -39,7 +39,7 @@
 
         <div id="weeklyAvailCard" class="card sched-card" style="display:none;">
           <h3 style="margin:0 0 4px;">Availability Schedule</h3>
-          <p style="margin:0 0 14px;color:var(--ink-2);font-size:.88rem;">Add the days and times you're free to teach. Each one repeats every week.</p>
+          <p style="margin:0 0 14px;color:var(--ink-2);font-size:.88rem;" id="weeklyAvailDesc">Add the days and times you're usually free. Each one repeats every week.</p>
           <div class="editor-month-header">
             <button type="button" class="cal-nav-btn" id="schedMonthPrev" aria-label="Previous month">‹</button>
             <div class="cal-title" id="schedMonthLabel">—</div>
@@ -111,11 +111,10 @@
   document.getElementById('scheduleSidebar').innerHTML = sidebar('schedule');
 
   if (!isTutor){
-    document.getElementById('schedEyebrow').textContent = 'Your classes';
+    document.getElementById('schedEyebrow').textContent = 'Your availability';
     document.getElementById('schedTitle').textContent = 'My Schedule';
-    document.getElementById('schedSubtitle').textContent = 'See your upcoming classes for the week, in your own timezone.';
-    document.getElementById('previewTitle').textContent = 'Your upcoming classes this week';
-    document.getElementById('editScheduleWrap').style.display = 'none';
+    document.getElementById('schedSubtitle').textContent = 'Let tutors know when you\'re usually free for classes.';
+    document.getElementById('previewTitle').textContent = 'Your weekly availability';
   }
 
   async function handleDeactivateAccount(){
@@ -347,7 +346,7 @@
       days.forEach(d => {
         const dow = d.getDay();
         const cls = classAt(d, label);
-        const available = isTutor && rows.some(s => s.dayOfWeek === dow && label >= s.startTime && label < s.endTime);
+        const available = rows.some(s => s.dayOfWeek === dow && label >= s.startTime && label < s.endTime);
         let cellClass = '', cellText = '';
         if (cls){
           const other = isTutor ? cls.student : cls.tutor;
@@ -446,11 +445,7 @@
     saveBtn.disabled = false; saveBtn.textContent = 'Save';
   });
 
-  if (isTutor){
-    loadWeeklyRows();
-  } else {
-    renderPreview();
-  }
+  loadWeeklyRows();
 </script>
 <style>
   .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
