@@ -17,9 +17,9 @@
       <div style="flex:1;min-width:0;">
 
         <div class="sched-head">
-          <div class="eyebrow">Teaching hours</div>
-          <h2 style="margin:0;">My Availability</h2>
-          <p style="margin:.35em 0 0;color:var(--ink-2);font-size:.9rem;">Students only see you as available while this is turned on.</p>
+          <div class="eyebrow" id="schedEyebrow">Teaching hours</div>
+          <h2 style="margin:0;" id="schedTitle">My Availability</h2>
+          <p style="margin:.35em 0 0;color:var(--ink-2);font-size:.9rem;" id="schedSubtitle">Students only see you as available while this is turned on.</p>
         </div>
 
         <div id="availCard" class="card sched-card" style="display:none;">
@@ -55,12 +55,12 @@
         </div>
 
         <div id="previewCard" class="card sched-card" style="display:none;">
-          <h3 style="margin:0 0 4px;">How students see your schedule</h3>
+          <h3 style="margin:0 0 4px;" id="previewTitle">How students see your schedule</h3>
           <p id="previewTzNote" style="margin:0 0 14px;color:var(--ink-2);font-size:.82rem;"></p>
           <div style="overflow-x:auto;">
             <table class="preview-table" id="previewTable"></table>
           </div>
-          <div style="margin-top:16px;">
+          <div style="margin-top:16px;" id="editScheduleWrap">
             <button type="button" class="btn ghost small" id="editScheduleBtn">Edit Schedule</button>
           </div>
         </div>
@@ -109,6 +109,14 @@
     `;
   }
   document.getElementById('scheduleSidebar').innerHTML = sidebar('schedule');
+
+  if (!isTutor){
+    document.getElementById('schedEyebrow').textContent = 'Your classes';
+    document.getElementById('schedTitle').textContent = 'My Schedule';
+    document.getElementById('schedSubtitle').textContent = 'See your upcoming classes for the week, in your own timezone.';
+    document.getElementById('previewTitle').textContent = 'Your upcoming classes this week';
+    document.getElementById('editScheduleWrap').style.display = 'none';
+  }
 
   async function handleDeactivateAccount(){
     if (!confirm('Deactivate your account? Your profile will be hidden from tutors/students, and you will not be able to log in again unless you contact support. This cannot be undone by yourself.')) return;
@@ -302,7 +310,7 @@
     return days;
   }
 
-  function renderPreview(){
+  async function renderPreview(){
     const card = document.getElementById('previewCard');
     card.style.display = 'block';
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -310,19 +318,46 @@
 
     const days = buildPreviewDays();
     const dayFmt = (d) => d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
-
     let thead = '<thead><tr><th></th>' + days.map(d => `<th>${dayFmt(d)}</th>`).join('') + '</tr></thead>';
 
     const timeLabels = [];
     for (let h = 0; h < 24; h++){ for (const m of [0, 30]){ timeLabels.push(pad2(h) + ':' + pad2(m)); } }
+
+    let classesForWindow = [];
+    try{
+      const start = days[0];
+      const end = new Date(days[days.length - 1]); end.setHours(23, 59, 59, 999);
+      classesForWindow = await fetchMyCalendar(start.toISOString(), end.toISOString());
+    }catch(err){ classesForWindow = []; }
+
+    function classAt(dateObj, label){
+      return classesForWindow.find(c => {
+        if (!c.scheduledAt) return false;
+        const cd = new Date(c.scheduledAt);
+        if (cd.getFullYear() !== dateObj.getFullYear() || cd.getMonth() !== dateObj.getMonth() || cd.getDate() !== dateObj.getDate()) return false;
+        const bucketMinute = cd.getMinutes() < 30 ? '00' : '30';
+        const bucketLabel = pad2(cd.getHours()) + ':' + bucketMinute;
+        return bucketLabel === label;
+      });
+    }
 
     let tbody = '<tbody>';
     timeLabels.forEach(label => {
       tbody += `<tr><td class="pv-time">${label}</td>`;
       days.forEach(d => {
         const dow = d.getDay();
-        const available = rows.some(s => s.dayOfWeek === dow && label >= s.startTime && label < s.endTime);
-        tbody += `<td class="${available ? 'pv-avail' : ''}">${available ? 'Available' : ''}</td>`;
+        const cls = classAt(d, label);
+        const available = isTutor && rows.some(s => s.dayOfWeek === dow && label >= s.startTime && label < s.endTime);
+        let cellClass = '', cellText = '';
+        if (cls){
+          const other = isTutor ? cls.student : cls.tutor;
+          cellClass = 'pv-class';
+          cellText = other ? `Class: ${other.firstName}` : 'Class';
+        } else if (available){
+          cellClass = 'pv-avail';
+          cellText = 'Available';
+        }
+        tbody += `<td class="${cellClass}">${cellText}</td>`;
       });
       tbody += '</tr>';
     });
@@ -411,7 +446,11 @@
     saveBtn.disabled = false; saveBtn.textContent = 'Save';
   });
 
-  if (isTutor) loadWeeklyRows();
+  if (isTutor){
+    loadWeeklyRows();
+  } else {
+    renderPreview();
+  }
 </script>
 <style>
   .profile-layout{ display:flex; gap:24px; align-items:flex-start; }
@@ -478,6 +517,7 @@
   .preview-table th{ background:#f7f7f7; font-size:.64rem; font-weight:700; color:var(--ink); }
   .preview-table td.pv-time{ background:#fafafa; font-weight:600; color:var(--ink-2); }
   .preview-table td.pv-avail{ background:var(--brand,#1e7d43); color:#fff; font-weight:600; }
+  .preview-table td.pv-class{ background:#1a56b0; color:#fff; font-weight:600; }
 
   @media (max-width:720px){
     .profile-layout{ flex-direction:column; }
