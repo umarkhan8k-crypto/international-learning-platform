@@ -19,33 +19,32 @@
         <div class="sched-head">
           <div class="eyebrow">Teaching hours</div>
           <h2 style="margin:0;">My Calendar</h2>
-          <p style="margin:.35em 0 0;color:var(--ink-2);font-size:.9rem;">Green = you're free. Click and drag to open up hours. Booked classes show automatically.</p>
+          <p style="margin:.35em 0 0;color:var(--ink-2);font-size:.9rem;">Tap a date, then tap the hours you're free. Booked classes show automatically.</p>
         </div>
 
         <div id="calCard" class="card sched-card" style="display:none;">
           <div class="sched-card-head">
-            <div class="tz-row" style="margin-bottom:0;">
+            <div class="tz-row">
               <label for="tzSelect">Your timezone</label>
               <select id="tzSelect" onchange="onTimezoneChange()"></select>
               <span id="tzCurrentTime" class="tz-current"></span>
             </div>
-            <div class="week-nav">
-              <button class="month-arrow" onclick="changeWeek(-1)" aria-label="Previous week">‹</button>
-              <span id="weekLabel"></span>
-              <button class="month-arrow" onclick="changeWeek(1)" aria-label="Next week">›</button>
-              <button class="btn ghost small" onclick="changeWeek(0,true)" style="margin-inline-start:6px;">Today</button>
+            <div class="month-nav">
+              <button class="month-arrow" onclick="changeMonth(-1)" aria-label="Previous month">‹</button>
+              <span id="monthLabel"></span>
+              <button class="month-arrow" onclick="changeMonth(1)" aria-label="Next month">›</button>
             </div>
           </div>
-          <span id="availStatus" class="save-status" style="display:block;margin-bottom:10px;"></span>
+          <span id="availStatus" class="save-status" style="display:block;margin-bottom:12px;"></span>
 
-          <div id="weekGrid" class="week-grid"></div>
+          <div id="calendarGrid" class="calendar-grid"></div>
 
-          <div id="cellDetail" class="cell-detail"></div>
+          <div id="dayAgenda" class="day-agenda"></div>
 
           <p class="hg-hint">
             <span class="legend-swatch legend-free"></span> Free
             <span class="legend-swatch legend-booked"></span> Booked class
-            <span class="legend-swatch legend-empty"></span> Not available
+            <span class="legend-swatch legend-empty"></span> Not set
           </p>
         </div>
 
@@ -143,19 +142,18 @@
   refreshMessagesBadge();
 
   /* ================================================================
-     Unified weekly calendar — Preply-style
-     Availability (recurring weekly pattern) and booked classes
-     (actual dated lessons) are shown together, on real calendar
-     dates, one week at a time.
+     Month calendar + 24-hour day agenda.
+     Availability is stored as a recurring weekly pattern (per weekday),
+     so tapping a date edits the hours for THAT WEEKDAY, every week.
+     Booked classes are actual dated lessons and always take priority
+     over the recurring pattern in the display.
      ================================================================ */
   const DAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  const GRID_START_HOUR = 6;
-  const GRID_END_HOUR   = 23;
-  let mySlots = [];        // recurring weekly pattern: [{dayOfWeek,startTime,endTime}]
-  let weekClasses = [];    // booked classes within the visible week
+  let mySlots = [];          // recurring weekly pattern: [{dayOfWeek,startTime,endTime}]
+  let monthClasses = [];     // booked classes in the visible month
   let myTimezone = 'UTC';
-  let weekOffset = 0;      // 0 = the week containing today
-  let dragMode = null;
+  let viewYear, viewMonth;   // viewMonth: 0-11
+  let selectedDate = null;   // a Date, or null
   let autoSaveTimer = null;
 
   const FALLBACK_TIMEZONES = [
@@ -168,17 +166,16 @@
     'Australia/Sydney','Pacific/Auckland',
   ];
 
-  function fmtTime(t){
-    const [hStr, m] = t.split(':');
-    let h = Number(hStr);
+  function fmtHour(h){
     const ap = h >= 12 ? 'pm' : 'am';
-    h = h % 12; if (h === 0) h = 12;
-    return `${h}:${m}${ap}`;
+    let hh = h % 12; if (hh === 0) hh = 12;
+    return `${hh}:00${ap}`;
   }
   function isValidTimezone(tz){
     try{ new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; }
     catch(e){ return false; }
   }
+  function sameDate(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
 
   /* ---------- Timezone (isolated — never blocks the calendar) ---------- */
   function populateTimezones(){
@@ -222,124 +219,150 @@
   }
   window.onTimezoneChange = onTimezoneChange;
 
-  /* ---------- Week math ---------- */
-  function startOfWeek(date){
-    const d = new Date(date);
-    d.setHours(0,0,0,0);
-    d.setDate(d.getDate() - d.getDay()); // back up to Sunday
-    return d;
+  /* ---------- Month calendar ---------- */
+  function formatMonthLabel(y, m){
+    return new Date(y, m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   }
-  function getWeekDates(offset){
-    const base = startOfWeek(new Date());
-    base.setDate(base.getDate() + offset * 7);
-    return Array.from({length:7}, (_,i) => { const d = new Date(base); d.setDate(base.getDate()+i); return d; });
-  }
-  function sameDate(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
-  function isoDateOnly(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-
-  function weekLabel(dates){
-    const first = dates[0], last = dates[6];
-    const opts = { month:'short', day:'numeric' };
-    const sameMonth = first.getMonth() === last.getMonth();
-    return sameMonth
-      ? `${first.toLocaleDateString(undefined,{month:'short'})} ${first.getDate()}–${last.getDate()}, ${last.getFullYear()}`
-      : `${first.toLocaleDateString(undefined,opts)} – ${last.toLocaleDateString(undefined,opts)}, ${last.getFullYear()}`;
-  }
-
-  /* ---------- Availability + booked lookups ---------- */
-  function isAvailable(date, hour){
-    const t = String(hour).padStart(2,'0') + ':00';
-    return mySlots.some(s => s.dayOfWeek === date.getDay() && s.startTime <= t && s.endTime > t);
-  }
-  function bookedAt(date, hour){
-    return weekClasses.find(c => {
+  function classesOnDay(y, m, d){
+    return monthClasses.filter(c => {
       const dt = new Date(c.scheduledAt);
-      return sameDate(dt, date) && dt.getHours() === hour;
+      return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d;
     });
   }
+  function weekdayHasAvailability(dayOfWeek){
+    return mySlots.some(s => s.dayOfWeek === dayOfWeek);
+  }
+
+  function renderCalendarGrid(){
+    const grid = document.getElementById('calendarGrid');
+    const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+    const today = new Date();
+
+    let html = '<div class="cal-weekdays">' + DAY_SHORT.map(d => `<div>${d}</div>`).join('') + '</div>';
+    html += '<div class="cal-days">';
+    for (let i = 0; i < firstDay; i++) html += '<div class="cal-cell empty"></div>';
+    for (let d = 1; d <= daysInMonth; d++){
+      const dateObj = new Date(viewYear, viewMonth, d);
+      const dayClasses = classesOnDay(viewYear, viewMonth, d);
+      const isToday = sameDate(dateObj, today);
+      const isSelected = selectedDate && sameDate(dateObj, selectedDate);
+      const hasAvail = weekdayHasAvailability(dateObj.getDay());
+      html += `<button type="button" class="cal-cell ${isToday?'today':''} ${dayClasses.length?'has-class':''} ${isSelected?'selected':''} ${hasAvail?'has-avail':''}" onclick="showDay(${d})">
+        <span class="cal-daynum">${d}</span>
+        ${dayClasses.length ? `<span class="cal-dot">${dayClasses.length > 1 ? dayClasses.length : ''}</span>` : ''}
+      </button>`;
+    }
+    html += '</div>';
+    grid.innerHTML = html;
+  }
+
+  async function loadMonth(){
+    document.getElementById('monthLabel').textContent = formatMonthLabel(viewYear, viewMonth);
+    const start = new Date(viewYear, viewMonth, 1);
+    const end = new Date(viewYear, viewMonth + 1, 0, 23, 59, 59);
+    try{
+      monthClasses = await fetchMyCalendar(start.toISOString(), end.toISOString());
+    }catch(err){
+      monthClasses = [];
+    }
+    renderCalendarGrid();
+    renderDayAgendaEmpty();
+  }
+
+  function renderDayAgendaEmpty(){
+    document.getElementById('dayAgenda').innerHTML = `
+      <div class="agenda-empty">
+        <div class="agenda-empty-icon">🗓</div>
+        <p>Tap a date above to set your hours for that day.</p>
+      </div>`;
+  }
+
+  function changeMonth(delta){
+    viewMonth += delta;
+    if (viewMonth < 0){ viewMonth = 11; viewYear--; }
+    if (viewMonth > 11){ viewMonth = 0; viewYear++; }
+    selectedDate = null;
+    loadMonth();
+  }
+  window.changeMonth = changeMonth;
+
+  /* ---------- 24-hour day agenda ---------- */
   function otherPartyName(c){
     const person = isTutor ? c.student : c.tutor;
     return (person.firstName||'') + ' ' + (person.lastName||'');
   }
-
-  /* ---------- Render ---------- */
-  function renderWeekGrid(){
-    const dates = getWeekDates(weekOffset);
-    document.getElementById('weekLabel').textContent = weekLabel(dates);
-    const today = new Date();
-
-    let html = '<div class="wg-corner"></div>';
-    dates.forEach(d => {
-      const isToday = sameDate(d, today);
-      html += `<div class="wg-day-head ${isToday?'today':''}">
-                 <div class="wg-day-name">${DAY_SHORT[d.getDay()]}</div>
-                 <div class="wg-day-num">${d.getDate()}</div>
-               </div>`;
+  function bookedAtHour(date, hour){
+    return monthClasses.find(c => {
+      const dt = new Date(c.scheduledAt);
+      return sameDate(dt, date) && dt.getHours() === hour;
     });
+  }
+  function isAvailableHour(dayOfWeek, hour){
+    const t = String(hour).padStart(2,'0') + ':00';
+    return mySlots.some(s => s.dayOfWeek === dayOfWeek && s.startTime <= t && s.endTime > t);
+  }
 
-    for (let h = GRID_START_HOUR; h < GRID_END_HOUR; h++){
-      html += `<div class="wg-hour-label">${fmtTime(String(h).padStart(2,'0')+':00')}</div>`;
-      dates.forEach((d,dayIdx) => {
-        const booked = bookedAt(d, h);
-        const free = isAvailable(d, h);
-        const isPast = d < today && !sameDate(d, today) || (sameDate(d, today) && h < today.getHours());
-        let cls = 'wg-cell';
-        if (booked) cls += ' booked';
-        else if (free) cls += ' free';
-        if (isPast && !booked) cls += ' past';
-        html += `<div class="${cls}" data-day="${dayIdx}" data-hour="${h}" data-date="${isoDateOnly(d)}">
-                   ${booked ? `<span class="wg-booked-label">${otherPartyName(booked)}</span>` : ''}
-                 </div>`;
-      });
+  function showDay(d){
+    selectedDate = new Date(viewYear, viewMonth, d);
+    renderCalendarGrid();
+    renderDayAgenda();
+  }
+  window.showDay = showDay;
+
+  function renderDayAgenda(){
+    const el = document.getElementById('dayAgenda');
+    const dayOfWeek = selectedDate.getDay();
+    const dateLabel = selectedDate.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+
+    let rows = '';
+    for (let h = 0; h < 24; h++){
+      const booked = bookedAtHour(selectedDate, h);
+      const free = isAvailableHour(dayOfWeek, h);
+      let cls = 'da-row';
+      let label = fmtHour(h);
+      let statusText = '';
+      if (booked){
+        cls += ' booked';
+        statusText = `Booked — ${otherPartyName(booked)}`;
+      } else if (free){
+        cls += ' free';
+        statusText = 'Available';
+      } else {
+        statusText = '';
+      }
+      rows += `<button type="button" class="${cls}" data-hour="${h}" onclick="onHourClick(${h})">
+                 <span class="da-time">${label}</span>
+                 <span class="da-status">${statusText}</span>
+                 ${booked && booked.meetingLink ? `<a href="${booked.meetingLink}" target="_blank" class="da-join" onclick="event.stopPropagation()">Join</a>` : ''}
+               </button>`;
     }
-    const grid = document.getElementById('weekGrid');
-    grid.innerHTML = html;
 
-    grid.querySelectorAll('.wg-cell').forEach(cell => {
-      cell.addEventListener('click', () => onCellClick(cell));
-      cell.addEventListener('mousedown', (e) => {
-        if (cell.classList.contains('booked')) return;
-        dragMode = cell.classList.contains('free') ? 'remove' : 'add';
-        toggleCell(cell, dragMode);
-        e.preventDefault();
-      });
-      cell.addEventListener('mouseenter', () => { if (dragMode && !cell.classList.contains('booked')) toggleCell(cell, dragMode); });
-    });
-    document.addEventListener('mouseup', () => { if (dragMode){ dragMode = null; scheduleAutoSave(); } });
+    el.innerHTML = `
+      <div class="agenda-head">${dateLabel} <span class="agenda-note">— hours you set repeat every ${DAY_SHORT[dayOfWeek]}</span></div>
+      <div class="day-hour-list">${rows}</div>
+    `;
   }
 
-  function onCellClick(cell){
-    if (!cell.classList.contains('booked')) return;
-    const day = Number(cell.dataset.day);
-    const hour = Number(cell.dataset.hour);
-    const dates = getWeekDates(weekOffset);
-    const c = bookedAt(dates[day], hour);
-    if (!c) return;
-    const detail = document.getElementById('cellDetail');
-    detail.innerHTML = `
-      <div class="cd-inner">
-        <div class="cd-name">${otherPartyName(c)}</div>
-        <div class="cd-time">${dates[day].toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})} · ${fmtTime(String(hour).padStart(2,'0')+':00')}</div>
-        ${c.meetingLink ? `<a href="${c.meetingLink}" target="_blank" class="btn primary small" style="margin-top:8px;">Join class</a>` : ''}
-      </div>`;
-  }
+  function onHourClick(hour){
+    const booked = bookedAtHour(selectedDate, hour);
+    if (booked) return; // booked hours aren't editable here
 
-  function toggleCell(cell, mode){
-    const day = Number(cell.dataset.day);
-    const hour = Number(cell.dataset.hour);
-    const dates = getWeekDates(weekOffset);
-    const dayOfWeek = dates[day].getDay();
+    const dayOfWeek = selectedDate.getDay();
     const start = String(hour).padStart(2,'0') + ':00';
     const end = String(hour+1).padStart(2,'0') + ':00';
+    const already = isAvailableHour(dayOfWeek, hour);
 
-    if (mode === 'add' && !cell.classList.contains('free')){
-      mySlots.push({ dayOfWeek, startTime: start, endTime: end });
-      cell.classList.add('free');
-    } else if (mode === 'remove' && cell.classList.contains('free')){
+    if (already){
       mySlots = mySlots.filter(s => !(s.dayOfWeek === dayOfWeek && s.startTime === start));
-      cell.classList.remove('free');
+    } else {
+      mySlots.push({ dayOfWeek, startTime: start, endTime: end });
     }
+    renderDayAgenda();
+    renderCalendarGrid();
+    scheduleAutoSave();
   }
+  window.onHourClick = onHourClick;
 
   function scheduleAutoSave(){
     const status = document.getElementById('availStatus');
@@ -348,30 +371,12 @@
     autoSaveTimer = setTimeout(async () => {
       try{
         mySlots = await saveMyAvailability(mySlots);
-        if (status){ status.textContent = 'Saved ✓ — this repeats every week'; status.className = 'save-status success'; }
+        if (status){ status.textContent = 'Saved ✓'; status.className = 'save-status success'; }
       }catch(err){
         if (status){ status.textContent = 'Could not save: ' + err.message; status.className = 'save-status error'; }
       }
     }, 800);
   }
-
-  async function loadWeekClasses(){
-    const dates = getWeekDates(weekOffset);
-    const start = dates[0];
-    const end = new Date(dates[6]); end.setHours(23,59,59,999);
-    try{
-      weekClasses = await fetchMyCalendar(start.toISOString(), end.toISOString());
-    }catch(err){
-      weekClasses = [];
-    }
-  }
-
-  function changeWeek(delta, jumpToToday){
-    weekOffset = jumpToToday ? 0 : weekOffset + delta;
-    document.getElementById('cellDetail').innerHTML = '';
-    loadWeekClasses().then(renderWeekGrid);
-  }
-  window.changeWeek = changeWeek;
 
   async function loadCalendar(){
     document.getElementById('calCard').style.display = 'block';
@@ -381,8 +386,10 @@
       catch(err){ mySlots = []; }
     }
 
-    await loadWeekClasses();
-    renderWeekGrid();
+    const now = new Date();
+    viewYear = now.getFullYear();
+    viewMonth = now.getMonth();
+    await loadMonth();
 
     try{
       const profile = await getMyProfile();
@@ -418,55 +425,76 @@
   .tz-row select{ padding:6px 10px; border:1px solid var(--line); border-radius:8px; font-family:var(--sans); font-size:.82rem; }
   .tz-current{ font-size:.76rem; color:var(--ink-2); }
 
-  .week-nav{ display:flex; align-items:center; gap:8px; }
+  .month-nav{ display:flex; align-items:center; gap:8px; }
   .month-arrow{ width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:#fff; color:var(--brand-dark); font-size:1rem; cursor:pointer; line-height:1; }
   .month-arrow:hover{ border-color:var(--brand); color:var(--brand); }
-  #weekLabel{ font-family:var(--serif); font-weight:700; font-size:.92rem; min-width:140px; text-align:center; display:inline-block; }
+  #monthLabel{ font-family:var(--serif); font-weight:700; font-size:.95rem; min-width:140px; text-align:center; display:inline-block; }
 
   .save-status{ font-size:.82rem; font-weight:600; }
   .save-status.success{ color:var(--brand-dark); }
   .save-status.error{ color:var(--rose); }
   .save-status.pending{ color:var(--ink-2); }
 
-  /* week grid */
-  .week-grid{
-    display:grid; grid-template-columns:56px repeat(7,1fr); gap:2px; user-select:none; -webkit-user-select:none;
+  /* month calendar */
+  .cal-weekdays{
+    display:grid; grid-template-columns:repeat(7,1fr); text-align:center;
+    font-size:.72rem; color:var(--ink-2); font-weight:700; margin-bottom:8px; letter-spacing:.03em;
   }
-  .wg-corner{}
-  .wg-day-head{ text-align:center; padding:4px 0 8px; border-bottom:2px solid var(--line); }
-  .wg-day-head.today{ border-color:var(--brand); }
-  .wg-day-name{ font-size:.68rem; font-weight:700; color:var(--ink-2); letter-spacing:.03em; }
-  .wg-day-num{ font-family:var(--serif); font-weight:700; font-size:1.05rem; color:var(--ink); }
-  .wg-day-head.today .wg-day-num{ color:var(--brand-dark); }
-  .wg-hour-label{ font-size:.65rem; color:var(--ink-2); text-align:right; padding-right:6px; align-self:center; }
-  .wg-cell{
-    height:26px; background:var(--surface); border:1px solid var(--line); border-radius:3px; cursor:pointer;
-    position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden;
+  .cal-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+  .cal-cell{
+    aspect-ratio:1; border:1px solid var(--line); border-radius:10px; background:#fff;
+    padding:0; cursor:pointer; position:relative; font-family:var(--sans);
+    display:flex; align-items:flex-start; justify-content:flex-start;
   }
-  .wg-cell:hover{ border-color:var(--brand); }
-  .wg-cell.free{ background:var(--brand-light); border-color:rgba(14,124,74,.35); }
-  .wg-cell.past.free{ opacity:.5; }
-  .wg-cell.booked{ background:var(--brand); border-color:var(--brand-dark); cursor:pointer; }
-  .wg-booked-label{ font-size:.6rem; color:#fff; font-weight:700; padding:0 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .cal-cell.empty{ border:none; background:none; cursor:default; }
+  .cal-daynum{ font-family:var(--serif); font-weight:700; font-size:.95rem; color:var(--ink); padding:8px 0 0 9px; }
+  .cal-cell:not(.empty):hover{ border-color:var(--brand); }
+  .cal-cell.today{ border-color:var(--brand); border-width:2px; }
+  .cal-cell.today .cal-daynum{ color:var(--brand-dark); }
+  .cal-cell.has-avail{ background:var(--brand-light); }
+  .cal-cell.has-class{ background:var(--brand); }
+  .cal-cell.has-class .cal-daynum{ color:#fff; }
+  .cal-cell.selected{ box-shadow:0 0 0 2px var(--brand) inset; }
+  .cal-dot{
+    position:absolute; bottom:7px; right:7px; min-width:9px; height:9px;
+    border-radius:999px; background:var(--gold); color:var(--brand-dark);
+    font-size:.62rem; font-weight:800; display:flex; align-items:center; justify-content:center; padding:0 3px;
+  }
 
-  .cell-detail{ margin-top:4px; }
-  .cd-inner{ background:var(--brand-light); border:1px solid rgba(14,124,74,.3); border-radius:10px; padding:12px 14px; margin-top:10px; }
-  .cd-name{ font-weight:700; font-size:.92rem; color:var(--brand-dark); }
-  .cd-time{ font-size:.82rem; color:var(--ink-2); margin-top:2px; }
+  /* day agenda — 24 hour list */
+  .day-agenda{ margin-top:20px; border-top:1px solid var(--line); padding-top:16px; }
+  .agenda-empty{ text-align:center; padding:26px 6px; color:var(--ink-2); }
+  .agenda-empty-icon{ font-size:1.5rem; margin-bottom:8px; }
+  .agenda-empty p{ font-size:.84rem; margin:0; }
+  .agenda-head{ font-family:var(--serif); font-weight:700; font-size:1rem; color:var(--brand-dark); margin-bottom:10px; }
+  .agenda-note{ font-family:var(--sans); font-weight:500; font-size:.78rem; color:var(--ink-2); }
+
+  .day-hour-list{ display:flex; flex-direction:column; gap:4px; max-height:420px; overflow-y:auto; padding-right:2px; }
+  .da-row{
+    display:flex; align-items:center; gap:10px; width:100%;
+    border:1px solid var(--line); border-radius:8px; background:var(--surface);
+    padding:8px 12px; cursor:pointer; font-family:var(--sans); text-align:left;
+  }
+  .da-row:hover{ border-color:var(--brand); }
+  .da-time{ font-size:.82rem; font-weight:700; color:var(--ink-2); width:64px; flex:none; }
+  .da-status{ font-size:.8rem; font-weight:700; flex:1; }
+  .da-row.free{ background:var(--brand); border-color:var(--brand-dark); }
+  .da-row.free .da-time,.da-row.free .da-status{ color:#fff; }
+  .da-row.booked{ background:var(--brand-dark); border-color:var(--brand-dark); cursor:default; }
+  .da-row.booked .da-time,.da-row.booked .da-status{ color:#fff; }
+  .da-join{ font-size:.76rem; font-weight:700; color:#fff; text-decoration:underline; flex:none; }
 
   .hg-hint{ font-size:.76rem; color:var(--ink-2); margin:16px 0 0; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
   .legend-swatch{ display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:4px; vertical-align:-2px; border:1px solid var(--line); }
-  .legend-free{ background:var(--brand-light); border-color:rgba(14,124,74,.35); }
-  .legend-booked{ background:var(--brand); border-color:var(--brand-dark); }
+  .legend-free{ background:var(--brand); border-color:var(--brand-dark); }
+  .legend-booked{ background:var(--brand-dark); border-color:var(--brand-dark); }
   .legend-empty{ background:var(--surface); }
 
   @media (max-width:720px){
     .profile-layout{ flex-direction:column; }
     .profile-sidebar{ width:100%; flex-direction:row; flex-wrap:wrap; }
-    .week-grid{ grid-template-columns:38px repeat(7,1fr); }
-    .wg-cell{ height:20px; }
-    .wg-day-num{ font-size:.85rem; }
-    .wg-booked-label{ font-size:.52rem; }
+    .cal-cell{ font-size:.75rem; }
+    .cal-daynum{ font-size:.82rem; padding:6px 0 0 6px; }
   }
 </style>
 </body>
