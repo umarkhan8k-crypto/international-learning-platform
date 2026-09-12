@@ -49,6 +49,14 @@
           <p id="availMsg" style="margin:12px 0 0;font-size:.84rem;font-weight:600;"></p>
         </div>
 
+        <div id="previewCard" class="card sched-card" style="display:none;">
+          <h3 style="margin:0 0 4px;">How students see your schedule</h3>
+          <p id="previewTzNote" style="margin:0 0 14px;color:var(--ink-2);font-size:.82rem;"></p>
+          <div style="overflow-x:auto;">
+            <table class="preview-table" id="previewTable"></table>
+          </div>
+        </div>
+
         <div class="card sched-card">
           <h3 style="margin:0 0 6px;">Need a specific time?</h3>
           <p style="margin:0;color:var(--ink-2);font-size:.88rem;">
@@ -229,6 +237,49 @@
     }
     savedRows = JSON.parse(JSON.stringify(rows));
     renderRows();
+    renderPreview();
+  }
+
+  /* ---------- dated preview: same next-7-days x half-hour grid students see ---------- */
+  function pad2(n){ return String(n).padStart(2, '0'); }
+
+  function buildPreviewDays(){
+    const days = [];
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 7; i++){
+      const d = new Date(today); d.setDate(today.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }
+
+  function renderPreview(){
+    const card = document.getElementById('previewCard');
+    card.style.display = 'block';
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    document.getElementById('previewTzNote').textContent = `Times are shown in your local timezone (${tz}).`;
+
+    const days = buildPreviewDays();
+    const dayFmt = (d) => d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'short' });
+
+    let thead = '<thead><tr><th></th>' + days.map(d => `<th>${dayFmt(d)}</th>`).join('') + '</tr></thead>';
+
+    const timeLabels = [];
+    for (let h = 0; h < 24; h++){ for (const m of [0, 30]){ timeLabels.push(pad2(h) + ':' + pad2(m)); } }
+
+    let tbody = '<tbody>';
+    timeLabels.forEach(label => {
+      tbody += `<tr><td class="pv-time">${label}</td>`;
+      days.forEach(d => {
+        const dow = d.getDay();
+        const available = rows.some(s => s.dayOfWeek === dow && label >= s.startTime && label < s.endTime);
+        tbody += `<td class="${available ? 'pv-avail' : ''}">${available ? 'Available' : ''}</td>`;
+      });
+      tbody += '</tr>';
+    });
+    tbody += '</tbody>';
+
+    document.getElementById('previewTable').innerHTML = thead + tbody;
   }
 
   function renderRows(){
@@ -270,6 +321,7 @@
   document.getElementById('availCancelBtn').addEventListener('click', () => {
     rows = JSON.parse(JSON.stringify(savedRows));
     renderRows();
+    renderPreview();
     const msg = document.getElementById('availMsg');
     msg.textContent = ''; msg.style.color = '';
   });
@@ -290,6 +342,7 @@
       rows = saved.map(s => ({ dayOfWeek: s.dayOfWeek, startTime: s.startTime, endTime: s.endTime }));
       savedRows = JSON.parse(JSON.stringify(rows));
       renderRows();
+      renderPreview();
       msg.textContent = 'Saved!';
       msg.style.color = '#1e7d43';
     }catch(err){
@@ -354,6 +407,13 @@
     font-size:.85rem; font-weight:600; cursor:pointer;
   }
   .add-day-btn:hover{ opacity:.9; }
+
+  /* ---------- dated preview table ---------- */
+  .preview-table{ border-collapse:collapse; width:100%; min-width:640px; font-size:.68rem; }
+  .preview-table th, .preview-table td{ border:1px solid var(--line,#ddd); padding:4px 6px; text-align:center; white-space:nowrap; }
+  .preview-table th{ background:#f7f7f7; font-size:.64rem; font-weight:700; color:var(--ink); }
+  .preview-table td.pv-time{ background:#fafafa; font-weight:600; color:var(--ink-2); }
+  .preview-table td.pv-avail{ background:var(--brand,#1e7d43); color:#fff; font-weight:600; }
 
   @media (max-width:720px){
     .profile-layout{ flex-direction:column; }
