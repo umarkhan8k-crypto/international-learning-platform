@@ -67,7 +67,7 @@
 
         <div class="card sched-card">
           <h3 style="margin:0 0 6px;">Need a specific time?</h3>
-          <p style="margin:0;color:var(--ink-2);font-size:.88rem;">
+          <p style="margin:0;color:var(--ink-2);font-size:.88rem;" id="specificTimeText">
             Students can message you directly to ask for a lesson at a set time — you'll see the request under
             <a href="requests.html" style="color:var(--brand);font-weight:600;">Requests</a> and can accept or decline it there.
           </p>
@@ -115,6 +115,9 @@
     document.getElementById('schedTitle').textContent = 'My Schedule';
     document.getElementById('schedSubtitle').textContent = 'Let tutors know when you\'re usually free for classes.';
     document.getElementById('previewTitle').textContent = 'Your weekly availability';
+    document.getElementById('specificTimeText').innerHTML =
+      'You can message a tutor directly to ask for a lesson at a set time — you\'ll see their reply under ' +
+      '<a href="requests.html" style="color:var(--brand);font-weight:600;">Requests</a> and confirm it there.';
   }
 
   async function handleDeactivateAccount(){
